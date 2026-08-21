@@ -1,0 +1,14 @@
+== cada idioma con una moneda de su sitio ==
+ok   es/CLP ancho=51
+ok   en/USD ancho=48
+ok   ja/JPY ancho=45
+ok   hi/KWD ancho=48
+== y con monedas que no son de su sitio ==
+ok   ja/CLP ancho=45
+ok   hi/USD ancho=45
+ok   es/KWD ancho=54
+ok   en/EUR ancho=49
+== el ancho se mide en columnas, no en caracteres ==
+ok   食費 japonés (4 columnas, 2 caracteres)
+ok   Food latino (4 columnas, 4 caracteres)
+TODO BIEN

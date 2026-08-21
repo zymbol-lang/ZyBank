@@ -1,0 +1,377 @@
+// ============================================================
+// núcleo/almacén.zy — la base de datos y el esquema
+//
+// Todo lo que toca `std/db` pasa por aquí. El resto del programa
+// no ve una sentencia SQL ni sabe el nombre de una tabla.
+//
+// Tres decisiones que gobiernan el esquema:
+//
+// 1. EL IMPORTE ES UN ENTERO y está en la unidad menor de la
+//    moneda DE SU CUENTA. La columna no lleva escala: la escala
+//    la da la moneda, y la moneda la da la cuenta. Guardar un
+//    número con coma sería guardar una aproximación binaria de un
+//    saldo, y un saldo no se aproxima.
+//
+// 2. LAS CATEGORÍAS SE GUARDAN POR CLAVE, no por su nombre. En la
+//    tabla hay "gasto.alimentación", no «Alimentación» ni «Food»:
+//    el nombre visible es asunto del catálogo de idioma. Guardar
+//    el nombre traducido ataría los datos al idioma en que se
+//    escribieron, y cambiar de idioma dejaría de ser gratis.
+//
+// 3. LOS PARÁMETROS SE ENLAZAN, nunca se concatenan. `std/db`
+//    enlaza `?` y con eso una comilla en una glosa deja de ser un
+//    problema — pero además es lo único que sobrevive al modo
+//    numeral: un número concatenado dentro de un SQL con `#०९#`
+//    activo viajaría a la base escrito en devanagari. Aquí no se
+//    concatena ni un número.
+//
+// EN: núcleo/almacén.zy — the database and the schema. Everything
+// touching `std/db` goes through here. Amounts are integers in the
+// minor unit of their ACCOUNT's currency; categories are stored by
+// KEY, never by translated name; parameters are always bound, never
+// concatenated — which is also the only thing that survives an
+// active numeral mode.
+// ============================================================
+
+# .núcleo_almacén {
+
+    <# std/db => bd
+
+    #> {
+        abrir
+        cerrar
+        migrar
+        conexión
+        hoy
+        es_nulo
+        // cuentas
+        crear_cuenta
+        cuentas
+        cuenta
+        cuenta_por_nombre
+        // categorías
+        crear_categoría
+        categorías
+        categoría_por_clave
+        // movimientos
+        anotar
+        movimientos
+        traspasar
+        // saldos
+        saldo
+        resumen_por_categoría
+    }
+
+    // Los fallos se devuelven como el VALOR de error que llegó, sin
+    // convertirlo a texto: `"" r` sobre un error blando aborta el
+    // programa (BUG-ZYB-003), que es lo contrario de lo que un error
+    // blando promete. Quien lo reciba lo imprime con `>>`, que sí
+    // sabe.
+    // EN: failures are returned as the error VALUE that arrived,
+    // never stringified: `"" r` on a soft error aborts the program
+    // (BUG-ZYB-003), the opposite of what a soft error promises.
+    nombre_conexión = "zybank"
+    abierta = #0
+
+    conexión() { <~ nombre_conexión }
+
+    // `ruta` es el archivo SQLite. Se pasa por DSN y no por
+    // `Driver={…}`, porque el nombre del driver cambia de una
+    // máquina a otra (unixODBC lo registra como `SQLite3`, el
+    // instalador de Windows como `SQLite3 ODBC Driver`) y ese
+    // nombre no tiene por qué estar dentro del programa.
+    //
+    // EN: `ruta` is the SQLite file, reached through a DSN rather
+    // than `Driver={…}`: the driver's name differs per machine and
+    // does not belong inside the program.
+    abrir(ruta) {
+        // La cadena de conexión lleva una ruta de archivo. Si el
+        // modo numeral estuviera activo y la ruta viniera de un
+        // número, viajaría escrita en otra escritura — la misma
+        // trampa que `io::write`. Se fuerza ASCII antes de armarla.
+        // EN: the connection string carries a file path; force
+        // ASCII digits before composing it (same trap as io::write).
+        #09#
+        cadena = "DSN=zymbol_sqlite;Database=" ruta ";"
+        r = bd::connect(nombre_conexión, cadena)
+        ? r$! { <~ (#0, r) }
+        abierta = #1
+        <~ (#1, "")
+    }
+
+    cerrar() {
+        ? abierta {
+            bd::disconnect(nombre_conexión)
+            abierta = #0
+        }
+    }
+
+    // El esquema. `IF NOT EXISTS` en todas: migrar es idempotente
+    // y arrancar sobre una base ya poblada tiene que ser un no-op.
+    //
+    // EN: The schema. Every statement is IF NOT EXISTS — migrating
+    // is idempotent and starting on a populated database is a no-op.
+    migrar() {
+        c = nombre_conexión
+        bd::exec(c, "CREATE TABLE IF NOT EXISTS preferencias(
+            clave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL)")
+
+        bd::exec(c, "CREATE TABLE IF NOT EXISTS cuentas(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            moneda TEXT NOT NULL,
+            saldo_inicial INTEGER NOT NULL DEFAULT 0,
+            activa INTEGER NOT NULL DEFAULT 1)")
+
+        // `tipo` es "ingreso" o "gasto". Es una clave interna, no
+        // un texto de pantalla: el catálogo lo traduce.
+        // EN: `tipo` is an internal key, not screen text.
+        bd::exec(c, "CREATE TABLE IF NOT EXISTS categorías(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clave TEXT NOT NULL UNIQUE,
+            grupo TEXT NOT NULL,
+            tipo TEXT NOT NULL)")
+
+        // `traspaso` empareja los dos asientos de un movimiento
+        // entre cuentas. Es NULL en un movimiento corriente.
+        // EN: `traspaso` pairs the two legs of a transfer; NULL for
+        // an ordinary movement.
+        bd::exec(c, "CREATE TABLE IF NOT EXISTS movimientos(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT NOT NULL,
+            cuenta INTEGER NOT NULL,
+            categoría INTEGER,
+            monto INTEGER NOT NULL,
+            glosa TEXT NOT NULL DEFAULT '',
+            traspaso INTEGER,
+            FOREIGN KEY(cuenta) REFERENCES cuentas(id),
+            FOREIGN KEY(categoría) REFERENCES categorías(id))")
+
+        bd::exec(c, "CREATE INDEX IF NOT EXISTS mov_cuenta ON movimientos(cuenta)")
+        bd::exec(c, "CREATE INDEX IF NOT EXISTS mov_fecha ON movimientos(fecha)")
+        <~ #1
+    }
+
+    // La fecha de hoy en ISO 8601. No hay `std/time`, así que sale
+    // del sistema por `<\ … \>` — y por eso se fuerza `#09#`
+    // primero: el modo numeral alcanza al intérprete de órdenes, y
+    // una fecha escrita en devanagari no es una fecha ISO.
+    //
+    // EN: Today in ISO 8601. There is no `std/time`, so it comes
+    // from the shell — hence the forced `#09#`: the numeral mode
+    // reaches the shell, and a date in Devanagari is not ISO 8601.
+    hoy() {
+        #09#
+        <~ <\ "date +%F" \>
+    }
+
+    // ¿Esta columna venía NULL?
+    //
+    // Un NULL de SQL llega como `Unit`. No es un error (`$!` da #0),
+    // no es igual a `""` ni a 0, y `"" v` sobre él ABORTA. La única
+    // forma de preguntarlo es destructurar la reflexión de tipo y
+    // mirar el segundo campo, que vale 0 cuando no hay valor.
+    //
+    // `GUIDE.md` documenta `null ↔ Unit` para `std/json` y no dice
+    // nada de `std/db`, donde una columna opcional es lo corriente.
+    // GAP-ZYB-009.
+    //
+    // EN: did this column arrive NULL? A SQL NULL comes back as
+    // `Unit`: not an error, not equal to "" or 0, and `"" v` on it
+    // ABORTS. The only way to ask is to destructure the type
+    // reflection and read the second field, 0 when there is no
+    // value. `GUIDE.md` documents `null ↔ Unit` for `std/json` and
+    // says nothing for `std/db`. GAP-ZYB-009.
+    es_nulo(v) {
+        (_t, hay, _val) = v#?
+        <~ hay == 0
+    }
+
+    // ── Cuentas ──────────────────────────────────────────────
+
+    crear_cuenta(nombre, moneda, saldo_inicial) {
+        c = nombre_conexión
+        r = bd::exec(c, "INSERT INTO cuentas(nombre, moneda, saldo_inicial, activa)
+                         VALUES(?, ?, ?, 1)", (nombre, moneda, saldo_inicial))
+        ? r$! { <~ (#0, r) }
+        f = bd::query_one(c, "SELECT id FROM cuentas WHERE nombre = ?", (nombre,))
+        <~ (#1, f.id)
+    }
+
+    cuentas() {
+        <~ bd::query(nombre_conexión,
+            "SELECT id, nombre, moneda, saldo_inicial, activa
+             FROM cuentas ORDER BY id")
+    }
+
+    cuenta(id) {
+        <~ bd::query_one(nombre_conexión,
+            "SELECT id, nombre, moneda, saldo_inicial, activa
+             FROM cuentas WHERE id = ?", (id,))
+    }
+
+    cuenta_por_nombre(nombre) {
+        <~ bd::query_one(nombre_conexión,
+            "SELECT id, nombre, moneda, saldo_inicial, activa
+             FROM cuentas WHERE nombre = ?", (nombre,))
+    }
+
+    // ── Categorías ───────────────────────────────────────────
+
+    crear_categoría(clave, grupo, tipo) {
+        c = nombre_conexión
+        r = bd::exec(c, "INSERT INTO categorías(clave, grupo, tipo) VALUES(?, ?, ?)",
+                     (clave, grupo, tipo))
+        ? r$! { <~ (#0, r) }
+        f = bd::query_one(c, "SELECT id FROM categorías WHERE clave = ?", (clave,))
+        <~ (#1, f.id)
+    }
+
+    categorías(tipo) {
+        c = nombre_conexión
+        ? tipo == "" {
+            <~ bd::query(c, "SELECT id, clave, grupo, tipo FROM categorías ORDER BY grupo, clave")
+        }
+        <~ bd::query(c, "SELECT id, clave, grupo, tipo FROM categorías
+                         WHERE tipo = ? ORDER BY grupo, clave", (tipo,))
+    }
+
+    categoría_por_clave(clave) {
+        <~ bd::query_one(nombre_conexión,
+            "SELECT id, clave, grupo, tipo FROM categorías WHERE clave = ?", (clave,))
+    }
+
+    // ── Movimientos ──────────────────────────────────────────
+
+    // El signo del monto es el que distingue ingreso de gasto: un
+    // gasto es negativo. No hay columna de tipo en `movimientos`
+    // porque el tipo ya está en el signo y en la categoría, y dos
+    // sitios que dicen lo mismo acaban diciendo cosas distintas.
+    //
+    // EN: The sign of the amount is what tells income from expense —
+    // an expense is negative. No type column: the type is already in
+    // the sign and in the category, and two places that state the
+    // same thing end up disagreeing.
+    anotar(fecha, cuenta_id, categoría_id, monto, glosa) {
+        r = bd::exec(nombre_conexión,
+            "INSERT INTO movimientos(fecha, cuenta, categoría, monto, glosa, traspaso)
+             VALUES(?, ?, ?, ?, ?, NULL)",
+            (fecha, cuenta_id, categoría_id, monto, glosa))
+        ? r$! { <~ (#0, r) }
+        <~ (#1, "")
+    }
+
+    movimientos(cuenta_id, límite) {
+        c = nombre_conexión
+        ? cuenta_id <= 0 {
+            <~ bd::query(c, "SELECT m.id, m.fecha, m.cuenta, m.monto, m.glosa, m.traspaso,
+                                    c.clave AS categoría, a.nombre AS cuenta_nombre,
+                                    a.moneda AS moneda
+                             FROM movimientos m
+                             JOIN cuentas a ON a.id = m.cuenta
+                             LEFT JOIN categorías c ON c.id = m.categoría
+                             ORDER BY m.fecha DESC, m.id DESC LIMIT ?", (límite,))
+        }
+        <~ bd::query(c, "SELECT m.id, m.fecha, m.cuenta, m.monto, m.glosa, m.traspaso,
+                                c.clave AS categoría, a.nombre AS cuenta_nombre,
+                                a.moneda AS moneda
+                         FROM movimientos m
+                         JOIN cuentas a ON a.id = m.cuenta
+                         LEFT JOIN categorías c ON c.id = m.categoría
+                         WHERE m.cuenta = ?
+                         ORDER BY m.fecha DESC, m.id DESC LIMIT ?", (cuenta_id, límite))
+    }
+
+    // Un traspaso son DOS asientos que viven o mueren juntos. Es la
+    // razón de que este módulo use `tx` y no dos `exec` seguidos:
+    // media transferencia no es un estado que la base pueda tener.
+    //
+    // Las monedas distintas no se convierten con una tasa
+    // inventada — se exige el monto de destino. Si el usuario mueve
+    // 100 USD a una cuenta en pesos, el programa no sabe a cuánto,
+    // y adivinarlo sería peor que preguntarlo.
+    //
+    // EN: A transfer is TWO entries that live or die together —
+    // hence `tx` rather than two `exec`s: half a transfer is not a
+    // state the database may hold. Across currencies the destination
+    // amount is required, never derived from an invented rate.
+    traspasar(fecha, origen_id, destino_id, monto_origen, monto_destino, glosa) {
+        c = nombre_conexión
+        ? origen_id == destino_id { <~ (#0, "misma_cuenta") }
+
+        f = bd::query_one(c, "SELECT COALESCE(MAX(traspaso), 0) + 1 AS sig FROM movimientos")
+        marca = f.sig
+
+        sql = "INSERT INTO movimientos(fecha, cuenta, categoría, monto, glosa, traspaso)
+               VALUES(?, ?, NULL, ?, ?, ?)"
+        lote = [
+            (sql, (fecha, origen_id, 0 - monto_origen, glosa, marca)),
+            (sql, (fecha, destino_id, monto_destino, glosa, marca))
+        ]
+        r = bd::tx(c, lote)
+        ? r$! { <~ (#0, r) }
+        <~ (#1, marca)
+    }
+
+    // ── Saldos ───────────────────────────────────────────────
+
+    saldo(cuenta_id) {
+        f = bd::query_one(nombre_conexión,
+            "SELECT a.saldo_inicial + COALESCE(SUM(m.monto), 0) AS saldo
+             FROM cuentas a
+             LEFT JOIN movimientos m ON m.cuenta = a.id
+             WHERE a.id = ?
+             GROUP BY a.id", (cuenta_id,))
+        <~ f.saldo
+    }
+
+    // Agregado por categoría dentro de un rango de fechas. Devuelve
+    // la CLAVE de la categoría, no un nombre: quien lo pinta lo
+    // traduce.
+    //
+    // Agrupa TAMBIÉN POR MONEDA, y no es un adorno: la primera
+    // versión sumaba sobre todas las cuentas y devolvía
+    // −100000 CLP + 10500 USD = −89500, un número que no es dinero
+    // de nada. Un total solo significa algo dentro de una moneda.
+    //
+    // Y excluye los traspasos (`m.traspaso IS NULL`): mover dinero
+    // de una cuenta propia a otra no es un gasto ni un ingreso, y
+    // contarlo como tal infla las dos columnas a la vez.
+    //
+    // EN: Aggregate by category over a date range, returning the
+    // KEY, not a name. Groups BY CURRENCY too — the first version
+    // summed across accounts and returned −100000 CLP + 10500 USD =
+    // −89500, which is not money in any currency. Transfers are
+    // excluded: moving your own money between your own accounts is
+    // neither income nor expense, and counting it inflates both.
+    resumen_por_categoría(cuenta_id, desde, hasta) {
+        c = nombre_conexión
+        ? cuenta_id <= 0 {
+            <~ bd::query(c, "SELECT COALESCE(k.clave, '') AS categoría,
+                                    COALESCE(k.grupo, '') AS grupo,
+                                    COALESCE(k.tipo, '') AS tipo,
+                                    a.moneda AS moneda,
+                                    SUM(m.monto) AS total, COUNT(*) AS cuantos
+                             FROM movimientos m
+                             JOIN cuentas a ON a.id = m.cuenta
+                             LEFT JOIN categorías k ON k.id = m.categoría
+                             WHERE m.fecha >= ? AND m.fecha <= ?
+                               AND m.traspaso IS NULL
+                             GROUP BY k.clave, k.grupo, k.tipo, a.moneda
+                             ORDER BY a.moneda, total", (desde, hasta))
+        }
+        <~ bd::query(c, "SELECT COALESCE(k.clave, '') AS categoría,
+                                COALESCE(k.grupo, '') AS grupo,
+                                COALESCE(k.tipo, '') AS tipo,
+                                a.moneda AS moneda,
+                                SUM(m.monto) AS total, COUNT(*) AS cuantos
+                         FROM movimientos m
+                         JOIN cuentas a ON a.id = m.cuenta
+                         LEFT JOIN categorías k ON k.id = m.categoría
+                         WHERE m.cuenta = ? AND m.fecha >= ? AND m.fecha <= ?
+                           AND m.traspaso IS NULL
+                         GROUP BY k.clave, k.grupo, k.tipo, a.moneda
+                         ORDER BY a.moneda, total", (cuenta_id, desde, hasta))
+    }
+}

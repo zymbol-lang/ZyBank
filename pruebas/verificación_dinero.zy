@@ -1,0 +1,129 @@
+// ============================================================
+// pruebas/verificación_dinero.zy — la aritmética y la escritura
+//
+// Comprueba INVARIANTES, no valores bonitos. Los tres exponentes
+// reales (0, 2, 3), el ida y vuelta texto↔entero, el rechazo de lo
+// que no es un importe en esa moneda, y el reparto que tiene que
+// sumar exactamente el total.
+//
+// El caso que más importa es el de exponente 0: un peso chileno no
+// tiene unidad menor, así que «1234,5» NO es un importe y aceptarlo
+// redondeando en silencio sería inventarse dinero.
+//
+//   zymbol run pruebas/verificación_dinero.zy
+//   zymbol run --vm pruebas/verificación_dinero.zy
+//
+// EN: pruebas/verificación_dinero.zy — money arithmetic and
+// rendering. Checks invariants: the three real exponents (0, 2, 3),
+// the text↔integer round trip, the refusal of what is not an amount
+// in that currency, and the split that must sum exactly.
+// ============================================================
+
+<# ../núcleo/dinero => d
+<# ../configuración/monedas => m
+
+// El contador NO puede vivir en el ámbito del archivo: una función
+// no lo alcanza (GUIDE.md § 10b — una llamada directa está aislada) y
+// `zymbol check` no lo dice (ERROR-ZYB-002). Escrito así, la suite
+// pasaba mientras no fallara nada y ABORTABA en cuanto algo fallaba
+// — una suite incapaz de informar de un fallo, que es el defecto que
+// zyquality documenta en los runners que decidían con `grep -q FAIL`.
+//
+// Por eso cada comprobación DEVUELVE 1 si falla y 0 si pasa, y el
+// cuerpo del archivo suma. El contador es del archivo y solo el
+// archivo lo toca.
+//
+// EN: the counter cannot live in file scope — a function cannot reach
+// it (GUIDE.md § 10b) and `zymbol check` does not say so
+// (ERROR-ZYB-002). Written that way the suite passed while nothing
+// failed and ABORTED as soon as something did: a suite unable to
+// report a failure. Each check RETURNS 1 on failure, 0 on pass, and
+// the file body sums.
+
+fallos = 0
+
+igual(qué, dado, esperado) {
+    ? dado == esperado {
+        >> "ok   " qué ¶
+        <~ 0
+    }
+    >> "FALLO " qué ": " dado " <> " esperado ¶
+    <~ 1
+}
+
+>> "== escritura por exponente ==" ¶
+fallos = fallos + igual("CLP exp 0",     d::formatear(1050, m::obtener("CLP")), "$1.050")
+fallos = fallos + igual("USD exp 2",     d::formatear(1050, m::obtener("USD")), "$10.50")
+fallos = fallos + igual("KWD exp 3",     d::formatear(1050, m::obtener("KWD")), "1.050 د.ك")
+fallos = fallos + igual("EUR pospuesto", d::formatear(1050, m::obtener("EUR")), "10,50 €")
+
+>> "== el relleno de ceros, que #.N| | no da ==" ¶
+fallos = fallos + igual("7 céntimos", d::formatear(7, m::obtener("USD")), "$0.07")
+fallos = fallos + igual("cero",       d::formatear(0, m::obtener("USD")), "$0.00")
+fallos = fallos + igual("10 justos",  d::formatear(1000, m::obtener("USD")), "$10.00")
+
+>> "== millares y signo ==" ¶
+fallos = fallos + igual("millares CLP", d::formatear(1234567, m::obtener("CLP")), "$1.234.567")
+fallos = fallos + igual("millares USD", d::formatear(1234567, m::obtener("USD")), "$12,345.67")
+fallos = fallos + igual("negativo",     d::formatear(0 - 1234567, m::obtener("EUR")), "-12.345,67 €")
+
+>> "== ida y vuelta ==" ¶
+vuelta(código, texto) {
+    mo = m::obtener(código)
+    (ok, v) = d::analizar(texto, mo)
+    ? !ok { <~ "«no válido»" }
+    <~ d::formatear(v, mo)
+}
+fallos = fallos + igual("CLP ida y vuelta", vuelta("CLP", "1.234.567"), "$1.234.567")
+fallos = fallos + igual("USD ida y vuelta", vuelta("USD", "12,345.67"), "$12,345.67")
+fallos = fallos + igual("EUR ida y vuelta", vuelta("EUR", "12.345,67"), "12.345,67 €")
+fallos = fallos + igual("KWD ida y vuelta", vuelta("KWD", "1.050"),     "1.050 د.ك")
+
+>> "== lo que NO es un importe en esa moneda ==" ¶
+fallos = fallos + igual("CLP no admite decimales", vuelta("CLP", "1234,5"), "«no válido»")
+fallos = fallos + igual("USD no admite 3 decimales", vuelta("USD", "1.234"), "«no válido»")
+fallos = fallos + igual("texto",                     vuelta("USD", "abc"),   "«no válido»")
+fallos = fallos + igual("vacío",                     vuelta("USD", ""),      "«no válido»")
+fallos = fallos + igual("dos separadores",           vuelta("USD", "1.2.3"), "«no válido»")
+
+>> "== «5» con exponente 2 son 50 céntimos, no 5 ==" ¶
+fallos = fallos + igual("medio dólar", vuelta("USD", "0.5"), "$0.50")
+
+>> "== el reparto suma exactamente ==" ¶
+suma_de(monto, partes) {
+    trozos = d::repartir(monto, partes)
+    s = 0
+    @ t:trozos { s = s + t }
+    <~ s
+}
+fallos = fallos + igual("100 entre 3",        suma_de(10000, 3), 10000)
+fallos = fallos + igual("7 entre 3",          suma_de(7, 3), 7)
+fallos = fallos + igual("negativo entre 4",   suma_de(0 - 1001, 4), 0 - 1001)
+fallos = fallos + igual("1 entre 7",          suma_de(1, 7), 1)
+// La forma se comprueba elemento a elemento: `"" <arreglo>` no es
+// una cadena, aunque `>> <arreglo>` sí se imprima (GAP-ZYB-008).
+// EN: checked element by element — `"" <array>` is not a string even
+// though `>> <array>` prints (GAP-ZYB-008).
+trozos = d::repartir(10000, 3)
+fallos = fallos + igual("el resto va al primero", trozos[1], 3334)
+fallos = fallos + igual("y no a los demás",       trozos[2], 3333)
+fallos = fallos + igual("ni al último",           trozos[3], 3333)
+
+>> "== el modo numeral alcanza al importe entero ==" ¶
+#०९#
+fallos = fallos + igual("devanagari, con su propio cero", d::formatear(1234507, m::obtener("USD")), "$१२,३४५.०७")
+#09#
+fallos = fallos + igual("de vuelta a ASCII", d::formatear(1234507, m::obtener("USD")), "$12,345.07")
+
+>> "== la forma canónica no lleva adornos ==" ¶
+fallos = fallos + igual("llano USD", d::formatear_llano(1234567, m::obtener("USD")), "12345.67")
+fallos = fallos + igual("llano CLP", d::formatear_llano(1234567, m::obtener("CLP")), "1234567")
+fallos = fallos + igual("llano KWD", d::formatear_llano(1050, m::obtener("KWD")), "1.050")
+
+>> "" ¶
+? fallos == 0 {
+    >> "TODO BIEN" ¶
+}
+_ {
+    >> "FALLOS: " fallos ¶
+}

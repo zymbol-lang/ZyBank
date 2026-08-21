@@ -1,0 +1,18 @@
+[package]
+name = "zybank"
+version = "0.1.0"
+engine = ">=0.0.9"
+description = "Personal ledger — income and expenses, written in Spanish, with money as integers, SQLite through std/db, and four locales"
+license = "AGPL-3.0-only"
+mode = "vm"
+
+[[script]]
+name = "zybank"
+path = "zybank.zy"
+default = true
+desc = "Órdenes — los verbos se aceptan en los cuatro idiomas"
+
+[[script]]
+name = "zybank_tui"
+path = "zybank_tui.zy"
+desc = "Pantalla completa — necesita un terminal de verdad"

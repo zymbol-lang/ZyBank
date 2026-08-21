@@ -1,0 +1,305 @@
+// ============================================================
+// núcleo/dinero.zy — la aritmética y la escritura del importe
+//
+// Un importe es UN ENTERO en la unidad menor de su moneda, nunca
+// un flotante. 1050 no es «mil cincuenta»: es lo que la moneda
+// diga que es. En dólares son 10,50 USD; en pesos chilenos son
+// 1.050 CLP; en dinares kuwaitíes son 1,050 KWD. El entero no
+// cambia — cambia el exponente de la moneda, y ese exponente es
+// configuración, no una constante del programa.
+//
+// De ahí sale la regla que gobierna todo este módulo: EL NÚMERO
+// DE DECIMALES NO SE CONOCE AL ESCRIBIR EL CÓDIGO. Por eso aquí
+// no aparece ni una sola vez `#.2|…|`. La precisión de `#.N|…|`
+// tiene que ser un literal entero — `#.n|x|` con n variable es un
+// error de análisis, comprobado — así que un formateador cuya
+// precisión llega en tiempo de ejecución no puede usarlo. Se
+// escribe con aritmética entera, que además es la única que no
+// miente sobre un saldo.
+//
+// EN: núcleo/dinero.zy — money arithmetic and rendering. An amount
+// is ONE INTEGER in its currency's minor unit, never a float. The
+// number of decimals is per-currency configuration, so this module
+// never uses `#.2|…|`: `#.N|…|` requires a literal precision, and
+// a formatter whose precision arrives at run time cannot use it.
+// Integer arithmetic throughout — the only kind that does not lie
+// about a balance.
+// ============================================================
+
+# .núcleo_dinero {
+
+    #> {
+        factor
+        formatear
+        formatear_llano
+        analizar
+        agrupar
+        rellenar
+        repartir
+        signo
+        absoluto
+    }
+
+    // 10^exponente. Los exponentes reales de ISO 4217 son 0, 2 y 3
+    // (y el 4 del ariary malgache), así que un bucle es de sobra y
+    // no arrastra la imprecisión de una potencia en flotante.
+    //
+    // EN: 10^exponent by loop — real ISO 4217 exponents are 0, 2, 3
+    // and 4, and a float power would drag its imprecision in.
+    factor(exponente) {
+        f = 1
+        i = 1
+        @ i <= exponente {
+            f = f * 10
+            i++
+        }
+        <~ f
+    }
+
+    signo(monto) {
+        ? monto < 0 { <~ -1 }
+        <~ 1
+    }
+
+    absoluto(monto) {
+        ? monto < 0 { <~ 0 - monto }
+        <~ monto
+    }
+
+    // Antepone ceros hasta que el texto tenga `ancho` dígitos.
+    //
+    // Opera sobre el TEXTO ya convertido, no sobre el número, y esa
+    // es la razón de que funcione con el modo numeral activo: si la
+    // escritura en curso es devanagari, `"" 7` ya vale "७" y aquí
+    // solo se cuenta y se antepone. El cero que antepone es el que
+    // se le pasa, porque el cero de cada escritura es un carácter
+    // distinto y este módulo no tiene por qué saber cuál.
+    //
+    // EN: Left-pads with zeros to `ancho` digits. Works on the
+    // already-converted TEXT, which is why it survives an active
+    // numeral mode: the caller supplies the zero character, since
+    // every script has its own.
+    rellenar(texto, ancho, cero) {
+        t = texto
+        @ t$# < ancho {
+            t = cero t
+        }
+        <~ t
+    }
+
+    // Agrupa de tres en tres desde la derecha: 1234567 → 1.234.567.
+    //
+    // También trabaja sobre el texto y por la misma razón. Un
+    // separador vacío ("") desactiva la agrupación, que es lo que
+    // piden los formatos sin miles.
+    //
+    // EN: Groups digits in threes from the right, on the text. An
+    // empty separator disables grouping.
+    agrupar(texto, separador) {
+        ? separador == "" { <~ texto }
+        n = texto$#
+        ? n <= 3 { <~ texto }
+        salida = ""
+        i = n
+        cuenta = 0
+        @ i >= 1 {
+            salida = texto$[i..i] salida
+            cuenta++
+            ? cuenta % 3 == 0 && i > 1 {
+                salida = separador salida
+            }
+            i--
+        }
+        <~ salida
+    }
+
+    // El importe tal como lo lee una persona en su moneda.
+    //
+    // `moneda` es el diccionario de configuración/monedas.zy. Se
+    // pasa entero en lugar de siete parámetros sueltos porque una
+    // moneda es una cosa, y porque así añadir un rasgo de formato
+    // no cambia la firma de cada llamador.
+    //
+    // EN: The amount as a person reads it in their currency.
+    // `moneda` is the dictionary from configuración/monedas.zy —
+    // passed whole so that adding a formatting trait does not
+    // change every call site's signature.
+    formatear(monto, moneda) {
+        exp = moneda["exponente"]
+        f = factor(exp)
+        neg = monto < 0
+        a = absoluto(monto)
+
+        entera = "" (a / f)
+        entera = agrupar(entera, moneda["miles"])
+
+        cuerpo = entera
+        ? exp > 0 {
+            // El cero de relleno se obtiene convirtiendo el 0 AQUÍ,
+            // no de una constante: bajo `#०९#` el cero es «०», y un
+            // "0" fijo mezclaría dos escrituras en el mismo importe.
+            // EN: the padding zero is obtained by converting 0 HERE —
+            // under `#०९#` zero is «०», and a literal "0" would mix
+            // two scripts inside one amount.
+            resto = a % f
+            frac_txt = "" resto
+            cero = "" 0
+            frac = rellenar(frac_txt, exp, cero)
+            cuerpo = entera moneda["decimal"] frac
+        }
+
+        hueco = ""
+        ? moneda["espacio"] { hueco = " " }
+
+        texto = ""
+        ? moneda["posición"] == "antes" {
+            texto = moneda["símbolo"] hueco cuerpo
+        }
+        _ {
+            texto = cuerpo hueco moneda["símbolo"]
+        }
+
+        ? neg { <~ "-" texto }
+        <~ texto
+    }
+
+    // La forma canónica: sin símbolo, sin miles, punto decimal
+    // ASCII. Es la que va a un archivo, a un CSV o a una consulta,
+    // nunca a la pantalla.
+    //
+    // La distinción no es cosmética. El modo numeral alcanza a
+    // `io::write` y a `<\ … \>` (USERAPPI18N §14, trampa 1), así
+    // que un programa que escriba datos con la escritura del
+    // usuario activa produce archivos que solo él puede releer.
+    // Quien llame a esto tiene que haber puesto `#09#` antes; el
+    // almacén lo hace y su prueba lo comprueba.
+    //
+    // EN: The canonical form — no symbol, no grouping, ASCII point.
+    // For files, CSV and queries; never for the screen. The caller
+    // must have set `#09#` first (the numeral mode reaches
+    // io::write and the shell — USERAPPI18N §14, trap 1).
+    formatear_llano(monto, moneda) {
+        exp = moneda["exponente"]
+        f = factor(exp)
+        neg = monto < 0
+        a = absoluto(monto)
+        cuerpo = "" (a / f)
+        ? exp > 0 {
+            resto = a % f
+            resto_txt = "" resto
+            cuerpo = cuerpo "." rellenar(resto_txt, exp, "0")
+        }
+        ? neg { <~ "-" cuerpo }
+        <~ cuerpo
+    }
+
+    // Texto de una persona → entero en la unidad menor.
+    // Devuelve (válido, monto). Nunca aborta: lo que se está
+    // leyendo es lo que alguien acaba de teclear.
+    //
+    // Acepta el separador de miles de la moneda y su separador
+    // decimal, y también el punto ASCII, porque quien teclea en un
+    // terminal escribe lo que tiene en el teclado. Una moneda de
+    // exponente 0 RECHAZA la parte decimal en lugar de redondearla
+    // en silencio: en un peso chileno «1234,5» no es un importe.
+    //
+    // EN: A person's text → integer in the minor unit. Returns
+    // (valid, amount); never aborts, since this is what someone
+    // just typed. A zero-exponent currency REJECTS a decimal part
+    // instead of silently rounding it.
+    analizar(texto, moneda) {
+        exp = moneda["exponente"]
+        t = texto
+        t = t$-- " "
+        t = t$-- moneda["símbolo"]
+        ? moneda["miles"] <> "" {
+            t = t$-- moneda["miles"]
+        }
+
+        neg = #0
+        ? t$# > 0 {
+            ? t$[1..1] == "-" {
+                neg = #1
+                t = t$-[1]
+            }
+        }
+        ? t$# == 0 { <~ (#0, 0) }
+
+        // Un solo separador decimal, el de la moneda o el punto.
+        t = t$~~[moneda["decimal"]:"."]
+        trozos = t $/ "."
+        ? trozos$# > 2 { <~ (#0, 0) }
+
+        parte_entera = trozos[1]
+        parte_frac = ""
+        ? trozos$# == 2 { parte_frac = trozos[2] }
+
+        ? parte_entera == "" { parte_entera = "0" }
+        ? !_solo_dígitos(parte_entera) { <~ (#0, 0) }
+        ? parte_frac <> "" && !_solo_dígitos(parte_frac) { <~ (#0, 0) }
+
+        // Exponente 0: no hay unidad menor donde poner esos dígitos.
+        // EN: exponent 0 — there is no minor unit to put them in.
+        ? exp == 0 && parte_frac <> "" { <~ (#0, 0) }
+        ? parte_frac$# > exp { <~ (#0, 0) }
+
+        f = factor(exp)
+        total = #|parte_entera| * f
+        ? exp > 0 && parte_frac <> "" {
+            total = total + #|rellenar_derecha(parte_frac, exp)|
+        }
+        ? neg { <~ (#1, 0 - total) }
+        <~ (#1, total)
+    }
+
+    // "5" con exponente 2 son 50 céntimos, no 5.
+    // EN: "5" at exponent 2 is 50 cents, not 5.
+    rellenar_derecha(texto, ancho) {
+        t = texto
+        @ t$# < ancho {
+            t = t "0"
+        }
+        <~ t
+    }
+
+    _solo_dígitos(texto) {
+        ? texto$# == 0 { <~ #0 }
+        i = 1
+        @ i <= texto$# {
+            c = texto$[i..i]
+            ? !("0123456789" $? c) { <~ #0 }
+            i++
+        }
+        <~ #1
+    }
+
+    // Reparte un importe en n partes que SUMAN EXACTAMENTE el
+    // importe. Es la única división de dinero que este programa
+    // admite.
+    //
+    // Un gasto de 100 entre 3 no son tres veces 33,33: son 33,34 +
+    // 33,33 + 33,33. El resto se reparte de una unidad en una
+    // unidad entre las primeras partes, que es el reparto que usa
+    // la contabilidad, y el invariante —la suma devuelve el
+    // original— es lo que la prueba comprueba, no los valores.
+    //
+    // EN: Splits an amount into n parts that SUM EXACTLY to it. The
+    // remainder is handed out one minor unit at a time. The suite
+    // checks the invariant, not the values.
+    repartir(monto, partes) {
+        ? partes <= 0 { <~ [] }
+        s = signo(monto)
+        a = absoluto(monto)
+        base = a / partes
+        resto = a % partes
+        salida = []
+        i = 1
+        @ i <= partes {
+            trozo = base
+            ? i <= resto { trozo = base + 1 }
+            salida = salida$+ (s * trozo)
+            i++
+        }
+        <~ salida
+    }
+}

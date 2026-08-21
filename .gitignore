@@ -1,0 +1,19 @@
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Zymbol standalone build output
+*.out
+
+# Packaged archives are built from source, not committed
+*.zyp
+
+# The ledger itself. A database is what the user puts in, not part of the
+# program — and the suites create and delete their own.
+*.db
+
+# Configuration is per-installation: it names a database path and picks a
+# locale. Committing one would hand everybody the same one.
+zybank.json

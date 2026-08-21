@@ -1,0 +1,87 @@
+// ============================================================
+// configuración/monedas.zy — la tabla de monedas
+//
+// Cada moneda es un DICCIONARIO, y la tabla entera es un
+// diccionario de diccionarios indexado por el código ISO 4217.
+// Esa es la estructura que el programa necesita de verdad —
+// «dame la moneda cuyo código es el que trae la configuración» es
+// una lectura por clave CALCULADA — y es también la que menos se
+// ha rodado del lenguaje: el diccionario llegó en v0.0.9 y hasta
+// ahora ninguna aplicación lo usaba.
+//
+// El campo que manda es `exponente`: cuántos dígitos tiene la
+// unidad menor. No es un detalle de presentación, es lo que dice
+// qué SIGNIFICA el entero guardado. El peso chileno no tiene
+// unidad menor en circulación (exponente 0), el dólar y el euro
+// tienen dos, y el dinar kuwaití tiene tres. Un programa que dé
+// por hecho el 2 está escrito para un solo país.
+//
+// EN: configuración/monedas.zy — the currency table: a dictionary
+// of dictionaries keyed by ISO 4217 code, read by COMPUTED key.
+// The field that governs is `exponente`, the number of digits in
+// the minor unit — it is what says what the stored integer MEANS.
+// CLP has none, USD/EUR have two, KWD has three. A program that
+// assumes 2 is written for one country.
+// ============================================================
+
+# .configuración_monedas {
+
+    #> {
+        tabla
+        obtener
+        conocida
+        códigos
+        predeterminada
+    }
+
+    // `posición` — dónde va el símbolo: "antes" o "después".
+    // `miles`    — separador de millares; "" desactiva la agrupación.
+    // `decimal`  — separador decimal; irrelevante si exponente es 0.
+    // `espacio`  — si va un espacio entre símbolo e importe.
+    //
+    // EN: posición = symbol side; miles = thousands separator ("" to
+    // disable); decimal = decimal mark (moot at exponent 0);
+    // espacio = space between symbol and amount.
+    tabla() {
+        <~ (
+            CLP: (código: "CLP", exponente: 0, símbolo: "$",   posición: "antes",   miles: ".", decimal: ",", espacio: #0, nombre: "Peso chileno"),
+            USD: (código: "USD", exponente: 2, símbolo: "$",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Dólar estadounidense"),
+            EUR: (código: "EUR", exponente: 2, símbolo: "€",   posición: "después", miles: ".", decimal: ",", espacio: #1, nombre: "Euro"),
+            GBP: (código: "GBP", exponente: 2, símbolo: "£",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Libra esterlina"),
+            JPY: (código: "JPY", exponente: 0, símbolo: "¥",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Yen japonés"),
+            KWD: (código: "KWD", exponente: 3, símbolo: "د.ك", posición: "después", miles: ",", decimal: ".", espacio: #1, nombre: "Dinar kuwaití"),
+            MXN: (código: "MXN", exponente: 2, símbolo: "$",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Peso mexicano"),
+            PEN: (código: "PEN", exponente: 2, símbolo: "S/",  posición: "antes",   miles: ",", decimal: ".", espacio: #1, nombre: "Sol peruano")
+        )
+    }
+
+    predeterminada() { <~ "CLP" }
+
+    // La lectura por clave calculada: el código llega de la
+    // configuración del usuario, no está escrito en ninguna parte
+    // del programa. Sin esto la tabla sería un registro y habría
+    // que escribir una rama por moneda.
+    //
+    // EN: The computed-key read — the code comes from the user's
+    // configuration. Without it this table would be a record and
+    // would need one branch per currency.
+    conocida(código) {
+        t = tabla()
+        <~ t$? código
+    }
+
+    obtener(código) {
+        t = tabla()
+        ? t$? código { <~ t[código] }
+        <~ t[predeterminada()]
+    }
+
+    códigos() {
+        t = tabla()
+        salida = []
+        @ c:t {
+            salida = salida$+ c
+        }
+        <~ salida
+    }
+}

@@ -1,0 +1,87 @@
+// ============================================================
+// idioma/english.zy — English (en).
+//
+// The keys stay Spanish because the program is written in Spanish.
+// A key is a concept in the base language, not a neutral ASCII
+// identifier, and translating the keys would only move the problem.
+//
+// Contrato: código · nombre · pares. El catálogo se escribe como
+// lista de pares y núcleo/mapa.zy lo vuelve diccionario; el porqué
+// está allí.
+//
+// EN: English locale. Keys stay Spanish — a key is a concept in
+// the base language, not a neutral identifier.
+// ============================================================
+
+# .idioma_english {
+
+    #> { código, nombre, pares }
+
+    código() { <~ "en" }
+    nombre() { <~ "English" }
+
+    pares() {
+        <~ [
+            ("app.nombre",             "ZyBank"),
+            ("app.lema",               "Income and expenses"),
+
+            ("menú.cuentas",           "Accounts"),
+            ("menú.movimientos",       "Movements"),
+            ("menú.resumen",           "Summary"),
+            ("menú.configuración",     "Settings"),
+            ("menú.salir",             "Quit"),
+
+            ("campo.fecha",            "Date"),
+            ("campo.cuenta",           "Account"),
+            ("campo.categoría",        "Category"),
+            ("campo.monto",            "Amount"),
+            ("campo.glosa",            "Note"),
+            ("campo.saldo",            "Balance"),
+            ("campo.moneda",           "Currency"),
+            ("campo.total",            "Total"),
+            ("campo.cuantos",          "No."),
+
+            ("tipo.ingreso",           "Income"),
+            ("tipo.gasto",             "Expense"),
+
+            ("grupo.ingreso.trabajo",  "Work"),
+            ("grupo.ingreso.otros",    "Other income"),
+            ("grupo.gasto.hogar",      "Home"),
+            ("grupo.gasto.personal",   "Personal"),
+            ("grupo.gasto.deberes",    "Obligations"),
+
+            ("cat.ingreso.sueldo",     "Salary"),
+            ("cat.ingreso.honorarios", "Fees"),
+            ("cat.ingreso.intereses",  "Interest"),
+            ("cat.ingreso.regalo",     "Gift"),
+            ("cat.gasto.alimentación", "Food"),
+            ("cat.gasto.vivienda",     "Housing"),
+            ("cat.gasto.servicios",    "Utilities"),
+            ("cat.gasto.transporte",   "Transport"),
+            ("cat.gasto.salud",        "Health"),
+            ("cat.gasto.educación",    "Education"),
+            ("cat.gasto.ocio",         "Leisure"),
+            ("cat.gasto.impuestos",    "Taxes"),
+
+            ("acción.anotar",          "Record"),
+            ("acción.listar",          "List"),
+            ("acción.traspasar",       "Transfer"),
+            ("acción.resumir",         "Summarize"),
+
+            ("msg.sin_movimientos",    "No movements"),
+            ("msg.sin_cuentas",        "No accounts yet"),
+            ("msg.monto_inválido",     "That amount is not valid for this currency"),
+            ("msg.cuenta_no_existe",   "No such account"),
+            ("msg.misma_cuenta",       "Source and destination are the same account"),
+            ("msg.moneda_distinta",    "The accounts use different currencies: give the destination amount"),
+            ("msg.creado",             "Created"),
+            ("msg.anotado",            "Recorded"),
+            ("msg.traspasado",         "Transferred"),
+
+            ("info.entradas",          "In"),
+            ("info.salidas",           "Out"),
+            ("info.neto",              "Net"),
+            ("info.periodo",           "Period")
+        ]
+    }
+}

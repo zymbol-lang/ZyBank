@@ -1,0 +1,190 @@
+// ============================================================
+// configuración/preferencias.zy — de dónde salen el idioma y la moneda
+//
+// Dos orígenes y una regla: EL ARCHIVO MANDA, LA BASE RECUERDA.
+//
+//   1. La base guarda lo último que se eligió desde dentro del
+//      programa. Es la memoria: quien cambió de idioma en el menú
+//      espera encontrarlo así la próxima vez.
+//   2. El archivo JSON, si existe, pisa a la base. Es la decisión
+//      declarada: quien escribe un archivo de configuración está
+//      diciendo algo más fuerte que quien pulsó una tecla una vez,
+//      y además es lo que permite fijar la configuración desde
+//      fuera sin abrir la aplicación.
+//
+// La precedencia se implementa en una sola línea —`mapa::fusionar(
+// de_la_base, del_archivo)`, y el segundo pisa— para que no haya
+// dos sitios que puedan discrepar sobre quién gana.
+//
+// EL ARCHIVO SE PUEDE ESCRIBIR EN EL IDIOMA DEL USUARIO. `idioma`,
+// `language`, `言語` y `भाषा` son la misma clave, y quien la escribe
+// no tiene por qué saber en qué idioma se escribió el programa.
+// Lo hace `json::decode_map`, que renombra claves durante el
+// decodificado: un mapa con todas las variantes las lleva a la
+// forma canónica, y las claves que no estén en el mapa se
+// conservan tal cual. Es el mismo principio que sostiene el resto
+// del lenguaje —que ninguna lengua sea la obligatoria— aplicado a
+// los datos y no al código.
+//
+// EN: configuración/preferencias.zy — where the locale and the
+// currency come from. Two sources, one rule: THE FILE OUTRANKS,
+// THE DATABASE REMEMBERS. Precedence is one line so two places
+// cannot disagree about who wins. The file MAY BE WRITTEN IN THE
+// USER'S LANGUAGE — `idioma`, `language`, `言語` and `भाषा` are the
+// same key — via `json::decode_map`, which renames keys as it
+// decodes; keys absent from the map are preserved verbatim.
+// ============================================================
+
+# .configuración_preferencias {
+
+    <# std/json => js
+    <# std/io => io
+    <# std/db => bd
+    <# ../núcleo/mapa => mp
+    <# ./monedas => mon
+
+    #> {
+        canónicas
+        predeterminadas
+        leer_base
+        leer_archivo
+        cargar
+        recordar
+        validar
+    }
+
+    // Las claves canónicas están en español porque el programa
+    // está escrito en español. Las demás son alias de entrada.
+    // EN: canonical keys are Spanish because the program is; the
+    // rest are input aliases.
+    canónicas() { <~ ["idioma", "moneda", "base", "cuenta"] }
+
+    // El mapa de alias que `decode_map` aplica. Las claves son
+    // identificadores —eso lo exige el literal— y por suerte
+    // `言語` y `भाषा` lo son: Zymbol admite identificadores en
+    // cualquier escritura, que es justamente el punto.
+    //
+    // EN: the alias map decode_map applies. Keys must be
+    // identifiers, and `言語` and `भाषा` are — Zymbol admits
+    // identifiers in any script, which is exactly the point.
+    _alias() {
+        <~ (
+            language: "idioma",   言語: "idioma",   भाषा: "idioma",
+            currency: "moneda",   通貨: "moneda",   मुद्रा: "moneda",
+            database: "base",     口座簿: "base",    डेटाबेस: "base",
+            account:  "cuenta",   口座: "cuenta",   खाता: "cuenta"
+        )
+    }
+
+    predeterminadas() {
+        <~ mp::desde_pares([
+            ("idioma", "es"),
+            ("moneda", mon::predeterminada()),
+            ("base",   "zybank.db"),
+            ("cuenta", "")
+        ])
+    }
+
+    // Lo guardado. La tabla existe desde `migrar()`, así que una
+    // base recién creada devuelve un diccionario vacío y no un
+    // error.
+    // EN: what was stored. A fresh database yields an empty
+    // dictionary, not an error.
+    leer_base(conexión) {
+        d = mp::vacío()
+        filas = bd::query(conexión, "SELECT clave, valor FROM preferencias")
+        ? filas$! { <~ d }
+        @ f:filas {
+            d[f.clave]$~ f.valor
+        }
+        <~ d
+    }
+
+    // Lo declarado. Un archivo ausente no es un error —es el caso
+    // normal— y un archivo ilegible tampoco tumba el arranque: se
+    // devuelve vacío y manda la base. Un programa que no arranca
+    // por una coma de más en su configuración es peor que uno que
+    // arranca con lo que tenía.
+    //
+    // EN: what was declared. A missing file is the normal case, and
+    // an unreadable one does not stop startup either: empty is
+    // returned and the database wins. A program that refuses to
+    // start over a stray comma is worse than one that starts with
+    // what it had.
+    leer_archivo(ruta) {
+        ? !io::exists(ruta) { <~ (#1, mp::vacío()) }
+        texto = io::read(ruta)
+        ? texto$! { <~ (#0, mp::vacío()) }
+        crudo = js::decode_map(texto, _alias())
+        ? crudo$! { <~ (#0, mp::vacío()) }
+        // Solo se aceptan las claves canónicas: una clave que no se
+        // entiende se ignora en vez de viajar hasta el fondo del
+        // programa.
+        // EN: only canonical keys are accepted; anything else is
+        // ignored rather than travelling deeper.
+        d = mp::vacío()
+        @ k:canónicas() {
+            ? crudo$? k {
+                // Los paréntesis son obligatorios: `d[k]$~ "" v` no
+                // concatena — asigna "" y descarta `v` sin decir nada,
+                // porque el resto se analiza como una sentencia suelta.
+                // `$+` sí acepta la yuxtaposición ahí; `$~` no.
+                // EN: the parentheses are required — `d[k]$~ "" v` does
+                // not concatenate: it assigns "" and drops `v` silently.
+                // `$+` does accept juxtaposition there; `$~` does not.
+                v = ("" crudo[k])
+                d[k]$~ v
+            }
+        }
+        <~ (#1, d)
+    }
+
+    // La regla, en una línea.
+    // EN: the rule, in one line.
+    cargar(conexión, ruta_json) {
+        base = leer_base(conexión)
+        (ok, archivo) = leer_archivo(ruta_json)
+        p = mp::fusionar(predeterminadas(), base)
+        p = mp::fusionar(p, archivo)
+        <~ (ok, p)
+    }
+
+    // Escribe en la base — la memoria, no la decisión declarada. Si
+    // hay archivo, la próxima carga lo volverá a pisar, y eso es lo
+    // correcto: recordar no es mandar.
+    //
+    // EN: writes to the database — memory, not declaration. If a
+    // file exists the next load will outrank this again, which is
+    // right: remembering is not deciding.
+    recordar(conexión, clave, valor) {
+        r = bd::exec(conexión,
+            "INSERT INTO preferencias(clave, valor) VALUES(?, ?)
+             ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+            (clave, valor))
+        ? r$! { <~ (#0, r) }
+        <~ (#1, "")
+    }
+
+    // Devuelve (válidas, avisos). No corrige en silencio: una
+    // moneda desconocida en la configuración se sustituye por la
+    // predeterminada Y se dice.
+    // EN: returns (valid, warnings). Nothing is corrected silently.
+    validar(p, idiomas_conocidos) {
+        avisos = []
+        d = mp::fusionar(predeterminadas(), p)
+
+        ? !mon::conocida(d["moneda"]) {
+            avisos = avisos$+ ("moneda", d["moneda"])
+            d["moneda"]$~ mon::predeterminada()
+        }
+        hallado = #0
+        @ c:idiomas_conocidos {
+            ? c == d["idioma"] { hallado = #1 }
+        }
+        ? !hallado {
+            avisos = avisos$+ ("idioma", d["idioma"])
+            d["idioma"]$~ "es"
+        }
+        <~ (d, avisos)
+    }
+}

@@ -1,0 +1,86 @@
+// ============================================================
+// núcleo/mapa.zy — construir un diccionario con claves de verdad
+//
+// Existe por dos límites de la notación, no por gusto:
+//
+// 1. NO HAY LITERAL DE DICCIONARIO VACÍO. `()` no analiza. El
+//    valor sí existe — quitarle a `(a: 1)` su única clave deja un
+//    `()` cuyo `$#` es 0 — pero no se puede escribir. Así que un
+//    diccionario que se llena en tiempo de ejecución tiene que
+//    nacer con una clave y perderla después, y ese rodeo merece
+//    estar en un solo sitio del programa y no en cada módulo.
+//
+// 2. LAS CLAVES DEL LITERAL SON IDENTIFICADORES. `(nombre: "Ana")`
+//    se escribe, `("gasto.alimentación": "…")` no. Y la clave que
+//    este programa necesita es justo la segunda: la que está
+//    guardada en la base de datos, la que viene de un JSON, la que
+//    el usuario inventó. El corchete lee cualquier clave y `$~`
+//    añade cualquier clave — la restricción es solo del literal.
+//
+// De ahí que los catálogos se escriban como listas de pares y se
+// conviertan aquí. La lista de pares se lee igual de bien, ordena
+// igual, y además es la forma que un catálogo cargado de un
+// archivo tendría de todos modos.
+//
+// EN: núcleo/mapa.zy — building a dictionary with real keys.
+// Two notation limits: there is NO empty-dictionary literal (`()`
+// does not parse, though the value exists), and literal keys must
+// be identifiers, so "gasto.alimentación" — precisely the kind of
+// key this program stores — cannot be written in one. Brackets read
+// and `$~` adds any key; only the literal is restricted. Hence
+// catalogues are written as pair lists and converted here.
+// ============================================================
+
+# .núcleo_mapa {
+
+    #> { vacío, desde_pares, claves, fusionar, obtener_o }
+
+    // La única clave centinela del programa, y solo vive dos
+    // líneas. EN: the program's only sentinel key, alive for two
+    // lines.
+    vacío() {
+        d = (·: "")
+        d$-["·"]
+        <~ d
+    }
+
+    desde_pares(pares) {
+        d = vacío()
+        @ p:pares {
+            (k, v) = p
+            d[k]$~ v
+        }
+        <~ d
+    }
+
+    claves(d) {
+        salida = []
+        @ k:d {
+            salida = salida$+ k
+        }
+        <~ salida
+    }
+
+    // El segundo pisa al primero. Es la regla que necesita la
+    // configuración: el archivo manda sobre lo guardado.
+    // EN: the second wins — the rule configuration needs, where the
+    // file outranks what was stored.
+    fusionar(base, encima) {
+        d = vacío()
+        @ k:base { d[k]$~ base[k] }
+        @ k:encima { d[k]$~ encima[k] }
+        <~ d
+    }
+
+    // Lectura con respaldo. Un diccionario da error duro ante una
+    // clave ausente (es un KeyError, no un `undefined`), que es lo
+    // correcto — pero un catálogo tiene que poder responder por una
+    // clave que el usuario inventó.
+    // EN: read with a fallback. A missing key is a hard error — a
+    // KeyError, not `undefined` — which is right, but a catalogue
+    // must be able to answer for a key the user invented.
+    obtener_o(d, clave, respaldo) {
+        ? d$? clave { <~ d[clave] }
+        <~ respaldo
+    }
+}

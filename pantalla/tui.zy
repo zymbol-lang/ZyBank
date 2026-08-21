@@ -1,0 +1,285 @@
+// ============================================================
+// pantalla/tui.zy — el navegador de cuentas y movimientos
+//
+// Lo que la CLI no puede dar: ver el estado y cambiarlo sin volver
+// a escribir la orden. Y una cosa que solo se ve aquí — CAMBIAR
+// DE IDIOMA EN VIVO. La tecla `i` rota el idioma y con él se
+// mueven las etiquetas, los nombres de las categorías y LA
+// ESCRITURA DE LAS CIFRAS, sin recargar nada y sin que ninguna
+// función de dibujo sepa qué idioma hay puesto.
+//
+// Eso es lo que valida el TUI y no la CLI: en una orden suelta el
+// idioma se lee al arrancar y no vuelve a cambiar, así que un
+// despachador roto se ve igual que uno bueno. Aquí el mismo
+// proceso pinta la misma pantalla en cuatro idiomas seguidos.
+//
+// La disposición se mide con `>>?` en cada cuadro: con la salida
+// redirigida `>>?` devuelve (24, 80) en vez de fallar, así que
+// esto no revienta cuando alguien lo tuberiza — se dibuja para 80
+// columnas.
+//
+// EN: pantalla/tui.zy — the account and movement browser. What the
+// CLI cannot give: seeing the state and changing it without
+// retyping the command — and one thing only visible here, SWITCHING
+// LANGUAGE LIVE. `i` rotates the locale and the labels, the
+// category names and THE DIGIT SCRIPT follow, with no drawing
+// function aware of which locale is set. In a one-shot command the
+// locale is read at startup and never changes, so a broken
+// dispatcher looks like a working one.
+// ============================================================
+
+# .pantalla_tui {
+
+    <# ../núcleo/almacén => al
+    <# ../núcleo/dinero => din
+    <# ../configuración/monedas => mon
+    <# ../idioma/despacho => idi
+    <# ../presentación/tabla => tab
+    <# std/term => tm
+
+    #> { correr }
+
+    // Colores ANSI 256.
+    TÍTULO := 45
+    TEXTO  := 252
+    TENUE  := 244
+    VERDE  := 46
+    ROJO   := 203
+    MARCA  := 226
+
+    _rotar_idioma() {
+        lista = idi::idiomas()
+        actual = idi::actual()
+        siguiente = lista[1]
+        i = 1
+        @ i <= lista$# {
+            ? lista[i] == actual {
+                ? i == lista$# { siguiente = lista[1] }
+                _ { siguiente = lista[i + 1] }
+            }
+            i++
+        }
+        idi::fijar(siguiente)
+    }
+
+    // El importe se pinta con el color de su signo. Es la única
+    // decisión de color que lleva significado: un gasto en rojo se
+    // lee antes que un signo menos.
+    // EN: the only colour choice that carries meaning — an expense
+    // in red reads faster than a minus sign.
+    _color_de(monto) {
+        ? monto < 0 { <~ ROJO }
+        <~ VERDE
+    }
+
+    _encabezado(fila, ancho) {
+        título = idi::texto("app.nombre") " · " idi::texto("app.lema")
+        >>~ (fila, 1, 1, TÍTULO, 0) > tm::center(título, ancho)
+    }
+
+    _pie(fila, ancho) {
+        // Una sola línea: la yuxtaposición no continúa en la
+        // siguiente (lo mismo que documenta `$++`).
+        // EN: one line — juxtaposition does not continue onto the
+        // next, same as documented for `$++`.
+        mov = idi::texto("menú.movimientos")
+        res = idi::texto("menú.resumen")
+        len = idi::nombre_idioma(idi::actual())
+        sal = idi::texto("menú.salir")
+        ayuda = "jk ▸ ⏎ " mov " · r " res " · i " len " · q " sal
+        >>~ (fila, 1, 0, TENUE, 0) > tm::center(ayuda, ancho)
+    }
+
+    // ── Lista de cuentas ─────────────────────────────────────
+
+    _pintar_cuentas(cuentas, sel, alto, ancho) {
+        >>!
+        _encabezado(1, ancho)
+
+        enc = [idi::texto("campo.cuenta"), idi::texto("campo.moneda"), idi::texto("campo.saldo")]
+        filas = []
+        @ c:cuentas {
+            m = mon::obtener(c.moneda)
+            filas = °filas$+ [c.nombre, c.moneda, din::formatear(al::saldo(c.id), m)]
+        }
+        ? filas$# == 0 {
+            >>~ (3, 3, 0, TEXTO, 0) > idi::texto("msg.sin_cuentas")
+            _pie(alto, ancho)
+            <~ 0
+        }
+
+        líneas = tab::componer(enc, filas, ["izq", "izq", "der"])
+        fila = 3
+        i = 1
+        @ i <= líneas$# {
+            // Las dos primeras líneas son encabezado y separador;
+            // la cuenta n.º k está en la línea k+2.
+            // EN: the first two lines are header and rule.
+            estilo = 0
+            color = TEXTO
+            ? i > 2 {
+                ? (i - 2) == sel {
+                    estilo = 1
+                    color = MARCA
+                }
+            }
+            _ { color = TENUE }
+            marca = "  "
+            ? i > 2 {
+                ? (i - 2) == sel { marca = "▸ " }
+            }
+            >>~ (fila, 3, estilo, color, 0) > marca líneas[i]
+            fila++
+            i++
+        }
+        _pie(alto, ancho)
+        <~ 0
+    }
+
+    // ── Movimientos de una cuenta ────────────────────────────
+
+    _pintar_movimientos(cuenta, alto, ancho) {
+        >>!
+        _encabezado(1, ancho)
+        m = mon::obtener(cuenta.moneda)
+        >>~ (2, 3, 1, TÍTULO, 0) > cuenta.nombre "  " din::formatear(al::saldo(cuenta.id), m)
+
+        // Tantos movimientos como quepan: alto menos el
+        // encabezado, el subtítulo, la cabecera de tabla, el
+        // separador y el pie.
+        // EN: as many rows as fit, minus the chrome.
+        caben = alto - 7
+        ? caben < 1 { caben = 1 }
+        movs = al::movimientos(cuenta.id, caben)
+        ? movs$# == 0 {
+            >>~ (4, 3, 0, TEXTO, 0) > idi::texto("msg.sin_movimientos")
+            _pie(alto, ancho)
+            <~ 0
+        }
+
+        enc = [idi::texto("campo.fecha"), idi::texto("campo.categoría"),
+               idi::texto("campo.monto"), idi::texto("campo.glosa")]
+        filas = []
+        montos = []
+        @ mv:movs {
+            nombre_cat = ""
+            ? al::es_nulo(mv.categoría) { nombre_cat = idi::texto("acción.traspasar") }
+            _ { nombre_cat = idi::categoría(mv.categoría) }
+            filas = °filas$+ [mv.fecha, nombre_cat, din::formatear(mv.monto, m), mv.glosa]
+            montos = °montos$+ mv.monto
+        }
+
+        líneas = tab::componer(enc, filas, ["izq", "izq", "der", "izq"])
+        fila = 4
+        i = 1
+        @ i <= líneas$# {
+            color = TENUE
+            ? i > 2 { color = _color_de(montos[i - 2]) }
+            >>~ (fila, 3, 0, color, 0) > líneas[i]
+            fila++
+            i++
+        }
+        _pie(alto, ancho)
+        <~ 0
+    }
+
+    // ── Resumen ──────────────────────────────────────────────
+
+    _pintar_resumen(cuenta_id, alto, ancho) {
+        >>!
+        _encabezado(1, ancho)
+        >>~ (2, 3, 1, TÍTULO, 0) > idi::texto("menú.resumen")
+
+        r = al::resumen_por_categoría(cuenta_id, "0000-01-01", "9999-12-31")
+        ? r$# == 0 {
+            >>~ (4, 3, 0, TEXTO, 0) > idi::texto("msg.sin_movimientos")
+            _pie(alto, ancho)
+            <~ 0
+        }
+        enc = [idi::texto("campo.moneda"), idi::texto("campo.categoría"),
+               idi::texto("campo.total"), idi::texto("campo.cuantos")]
+        filas = []
+        totales = []
+        @ f:r {
+            m = mon::obtener(f.moneda)
+            cuantos = "" f.cuantos
+            filas = °filas$+ [f.moneda, idi::categoría(f.categoría),
+                              din::formatear(f.total, m), cuantos]
+            totales = °totales$+ f.total
+        }
+        líneas = tab::componer(enc, filas, ["izq", "izq", "der", "der"])
+        fila = 4
+        i = 1
+        @ i <= líneas$# {
+            color = TENUE
+            ? i > 2 { color = _color_de(totales[i - 2]) }
+            >>~ (fila, 3, 0, color, 0) > líneas[i]
+            fila++
+            i++
+        }
+        _pie(alto, ancho)
+        <~ 0
+    }
+
+    // ── El bucle ─────────────────────────────────────────────
+
+    correr() {
+        >>| {
+            sel = 1
+            vista = "cuentas"
+            cuenta_abierta = 0
+
+            @:principal {
+                (alto, ancho) = >>?
+                cuentas = al::cuentas()
+                ? sel > cuentas$# { sel = cuentas$# }
+                ? sel < 1 { sel = 1 }
+
+                ?? vista {
+                    "movimientos" => {
+                        ? cuenta_abierta > 0 {
+                            _pintar_movimientos(al::cuenta(cuenta_abierta), alto, ancho)
+                        }
+                    }
+                    "resumen" => { _pintar_resumen(cuenta_abierta, alto, ancho) }
+                    _ => { _pintar_cuentas(cuentas, sel, alto, ancho) }
+                }
+
+                <<| tecla
+
+                ? tecla == 'q' || tecla == 'Q' {
+                    @! principal
+                }
+                // El idioma cambia en el sitio, sin recargar nada:
+                // el siguiente cuadro se pinta entero en el idioma
+                // nuevo, cifras incluidas.
+                // EN: the locale changes in place — the next frame
+                // is drawn entirely in the new one, digits included.
+                ? tecla == 'i' || tecla == 'I' {
+                    _rotar_idioma()
+                }
+                ? tecla == 'r' || tecla == 'R' {
+                    ? vista == "resumen" { vista = "cuentas" }
+                    _ { vista = "resumen" }
+                }
+                ? tecla == '\n' {
+                    ? vista == "cuentas" {
+                        ? cuentas$# > 0 {
+                            cuenta_abierta = cuentas[sel].id
+                            vista = "movimientos"
+                        }
+                    }
+                    _ { vista = "cuentas" }
+                }
+                ? tecla == 'k' {
+                    ? sel > 1 { sel-- }
+                }
+                ? tecla == 'j' {
+                    ? sel < cuentas$# { sel++ }
+                }
+            }
+        }
+        >>! 
+        <~ 0
+    }
+}

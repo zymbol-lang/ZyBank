@@ -1,0 +1,106 @@
+// ============================================================
+// idioma/español.zy — español (es), el idioma base
+//
+// El catálogo es un DICCIONARIO, no una cadena de `??`, y se
+// escribe como lista de pares porque un literal de diccionario no
+// admite estas claves (núcleo/mapa.zy explica por qué). Dos
+// razones para el diccionario, y ninguna es de estilo:
+//
+// 1. Las claves llevan punto — "menú.título" — y el punto es el
+//    acceso por identificador. `c.menú.título` no existe; la clave
+//    solo se alcanza con el corchete, `c["menú.título"]`, que es
+//    justo lo que COLLECTIONS.md señala como la diferencia entre
+//    un diccionario y un registro.
+//
+// 2. La comprobación de completitud se vuelve un recorrido en vez
+//    de una inspección: `pruebas/verificación_idioma.zy` compara
+//    los conjuntos de claves de dos catálogos sin saber qué claves
+//    son. Con `??` habría que mantener a mano una lista de claves
+//    aparte del propio catálogo, que es un segundo sitio donde se
+//    olvida una entrada.
+//
+// Las claves están en español porque el programa está escrito en
+// español, y cada una lleva prefijo de dominio para que una clave
+// no pueda coincidir nunca con su propia traducción — que es lo
+// que mantiene decidible la regla «traducción == clave ⇒ falta»
+// también en el idioma base.
+//
+// EN: idioma/español.zy — Spanish (es), the base language. The
+// catalogue is a list of PAIRS that núcleo/mapa.zy turns into a
+// dictionary: keys carry dots, and a dictionary literal cannot
+// spell those. Completeness becomes a walk rather than an
+// inspection.
+// ============================================================
+
+# .idioma_español {
+
+    #> { código, nombre, pares }
+
+    código() { <~ "es" }
+    nombre() { <~ "Español" }
+
+    pares() {
+        <~ [
+            ("app.nombre",            "ZyBank"),
+            ("app.lema",              "Ingresos y gastos"),
+
+            ("menú.cuentas",          "Cuentas"),
+            ("menú.movimientos",      "Movimientos"),
+            ("menú.resumen",          "Resumen"),
+            ("menú.configuración",    "Configuración"),
+            ("menú.salir",            "Salir"),
+
+            ("campo.fecha",           "Fecha"),
+            ("campo.cuenta",          "Cuenta"),
+            ("campo.categoría",       "Categoría"),
+            ("campo.monto",           "Monto"),
+            ("campo.glosa",           "Glosa"),
+            ("campo.saldo",           "Saldo"),
+            ("campo.moneda",          "Moneda"),
+            ("campo.total",           "Total"),
+            ("campo.cuantos",         "N.º"),
+
+            ("tipo.ingreso",          "Ingreso"),
+            ("tipo.gasto",            "Gasto"),
+
+            ("grupo.ingreso.trabajo", "Trabajo"),
+            ("grupo.ingreso.otros",   "Otros ingresos"),
+            ("grupo.gasto.hogar",     "Hogar"),
+            ("grupo.gasto.personal",  "Personal"),
+            ("grupo.gasto.deberes",   "Obligaciones"),
+
+            ("cat.ingreso.sueldo",       "Sueldo"),
+            ("cat.ingreso.honorarios",   "Honorarios"),
+            ("cat.ingreso.intereses",    "Intereses"),
+            ("cat.ingreso.regalo",       "Regalo"),
+            ("cat.gasto.alimentación",   "Alimentación"),
+            ("cat.gasto.vivienda",       "Vivienda"),
+            ("cat.gasto.servicios",      "Servicios básicos"),
+            ("cat.gasto.transporte",     "Transporte"),
+            ("cat.gasto.salud",          "Salud"),
+            ("cat.gasto.educación",      "Educación"),
+            ("cat.gasto.ocio",           "Ocio"),
+            ("cat.gasto.impuestos",      "Impuestos"),
+
+            ("acción.anotar",         "Anotar"),
+            ("acción.listar",         "Listar"),
+            ("acción.traspasar",      "Traspasar"),
+            ("acción.resumir",        "Resumir"),
+
+            ("msg.sin_movimientos",   "No hay movimientos"),
+            ("msg.sin_cuentas",       "No hay cuentas todavía"),
+            ("msg.monto_inválido",    "El monto no es válido para esta moneda"),
+            ("msg.cuenta_no_existe",  "No existe esa cuenta"),
+            ("msg.misma_cuenta",      "El origen y el destino son la misma cuenta"),
+            ("msg.moneda_distinta",   "Las cuentas tienen monedas distintas: indica el monto de destino"),
+            ("msg.creado",            "Creado"),
+            ("msg.anotado",           "Anotado"),
+            ("msg.traspasado",        "Traspasado"),
+
+            ("info.entradas",         "Entradas"),
+            ("info.salidas",          "Salidas"),
+            ("info.neto",             "Neto"),
+            ("info.periodo",          "Periodo")
+        ]
+    }
+}

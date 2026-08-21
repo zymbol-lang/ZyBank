@@ -1,0 +1,68 @@
+// ============================================================
+// núcleo/semilla.zy — las categorías con las que se arranca
+//
+// Las claves son las que van a la base. Están en español porque
+// el programa está escrito en español, y NO se traducen al
+// guardarse: el catálogo de idioma las abre en pantalla y en
+// cualquier idioma. Una base creada en japonés y abierta en
+// español enseña las mismas filas con otros nombres, que es la
+// prueba de que la traducción está en la capa correcta.
+//
+// La lista es corta a propósito. Un plan de cuentas completo es
+// asunto de quien lleva sus cuentas, no del programa; lo que esto
+// tiene que dar es un arranque con el que se pueda anotar algo el
+// primer día. Las categorías propias se crean sin tocar esto y se
+// muestran tal como las escribió su dueño.
+//
+// EN: núcleo/semilla.zy — the starting categories. The keys are
+// what reaches the database, in Spanish because the program is,
+// and they are NOT translated on the way in: the locale catalogue
+// opens them on screen. A database created in Japanese and opened
+// in Spanish shows the same rows under different names — the proof
+// that translation sits in the right layer.
+// ============================================================
+
+# .núcleo_semilla {
+
+    #> { categorías }
+
+    // (clave, grupo, tipo)
+    categorías() {
+        <~ [
+            ("ingreso.sueldo",       "ingreso.trabajo",  "ingreso"),
+            ("ingreso.honorarios",   "ingreso.trabajo",  "ingreso"),
+            ("ingreso.intereses",    "ingreso.otros",    "ingreso"),
+            ("ingreso.regalo",       "ingreso.otros",    "ingreso"),
+            ("gasto.alimentación",   "gasto.hogar",      "gasto"),
+            ("gasto.vivienda",       "gasto.hogar",      "gasto"),
+            ("gasto.servicios",      "gasto.hogar",      "gasto"),
+            ("gasto.transporte",     "gasto.personal",   "gasto"),
+            ("gasto.salud",          "gasto.personal",   "gasto"),
+            ("gasto.educación",      "gasto.personal",   "gasto"),
+            ("gasto.ocio",           "gasto.personal",   "gasto"),
+            ("gasto.impuestos",      "gasto.deberes",    "gasto")
+        ]
+    }
+
+    // Aquí no hay una función `sembrar(crear)`. La había: recibía
+    // la función que crea una categoría, para que este módulo no
+    // tuviera que saber que existe una base de datos. Es el uso
+    // clásico de una función de orden superior y **no se puede
+    // escribir hoy** — pasar una función de un módulo a otro
+    // funciona en el tree-walker y en el motor del navegador, y
+    // falla en la VM (BUG-ZYB-005), mientras que la lambda que
+    // sería el rodeo falla en el tree-walker (BUG-ZYB-001).
+    //
+    // Así que la lista se expone y la recorre quien tiene la base.
+    // Es mejor diseño igualmente —la semilla no sabe de bases de
+    // datos, y ahora tampoco recibe nada que se le parezca— pero
+    // llegó a esta forma por un bug, no por gusto, y eso conviene
+    // que quede escrito.
+    //
+    // EN: there is no `sembrar(crear)` here. There was: it took the
+    // function that creates a category so this module need not know
+    // a database exists — the classic higher-order use, and one
+    // that CANNOT be written today (BUG-ZYB-005 in the VM,
+    // BUG-ZYB-001 in the tree-walker for the lambda workaround).
+    // The list is exposed and whoever holds the database walks it.
+}

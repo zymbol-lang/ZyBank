@@ -1,0 +1,42 @@
+== escritura por exponente ==
+ok   CLP exp 0
+ok   USD exp 2
+ok   KWD exp 3
+ok   EUR pospuesto
+== el relleno de ceros, que #.N| | no da ==
+ok   7 céntimos
+ok   cero
+ok   10 justos
+== millares y signo ==
+ok   millares CLP
+ok   millares USD
+ok   negativo
+== ida y vuelta ==
+ok   CLP ida y vuelta
+ok   USD ida y vuelta
+ok   EUR ida y vuelta
+ok   KWD ida y vuelta
+== lo que NO es un importe en esa moneda ==
+ok   CLP no admite decimales
+ok   USD no admite 3 decimales
+ok   texto
+ok   vacío
+ok   dos separadores
+== «5» con exponente 2 son 50 céntimos, no 5 ==
+ok   medio dólar
+== el reparto suma exactamente ==
+ok   100 entre 3
+ok   7 entre 3
+ok   negativo entre 4
+ok   1 entre 7
+ok   el resto va al primero
+ok   y no a los demás
+ok   ni al último
+== el modo numeral alcanza al importe entero ==
+ok   devanagari, con su propio cero
+ok   de vuelta a ASCII
+== la forma canónica no lleva adornos ==
+ok   llano USD
+ok   llano CLP
+ok   llano KWD
+TODO BIEN

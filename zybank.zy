@@ -1,0 +1,45 @@
+// ============================================================
+// zybank.zy — el punto de entrada
+//
+// Un archivo por idioma habría sido lo coherente con GO y con
+// चतुरङ्गम्, donde cada entrada arranca el juego en su lengua. Aquí
+// hay UNO SOLO, y es una decisión, no una omisión: el idioma de
+// esta aplicación no lo elige quien la lanza, lo elige la
+// configuración —el archivo o lo recordado en la base— porque las
+// cuentas de alguien son suyas y su idioma también. Y los verbos
+// se aceptan en los cuatro idiomas siempre, así que un punto de
+// entrada por lengua no daría nada que no esté ya.
+//
+// EN: zybank.zy — the entry point. One file, not one per language,
+// and that is a decision: the locale is chosen by configuration —
+// the file, or what the database remembers — not by which script
+// was launched, and the verbs are accepted in all four languages
+// anyway.
+// ============================================================
+
+<# ./interfaz/cli => cli
+
+>< args
+
+(ok, err) = cli::arrancar("zybank.json")
+? !ok {
+    >> "✗ " err ¶
+}
+_? #1 {
+    código = cli::ejecutar(args)
+
+    // El código que `ejecutar` devuelve NO llega al sistema
+    // operativo: un programa Zymbol no puede fijar su código de
+    // salida (GAP-ZYB-009). Se imprime cuando se pide, para que un
+    // guion pueda leerlo de la salida, que es un contrato peor
+    // —hay que analizar texto— pero es el único que hay hoy.
+    //
+    // EN: the code `ejecutar` returns does NOT reach the operating
+    // system: a Zymbol program cannot set its exit status
+    // (GAP-ZYB-009). It is printed on request so a script can read
+    // it from the output — a worse contract, and the only one
+    // available today.
+    ? código <> 0 {
+        >> "# rc=" código ¶
+    }
+}

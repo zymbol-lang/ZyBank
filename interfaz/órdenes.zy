@@ -1,0 +1,110 @@
+// ============================================================
+// interfaz/órdenes.zy — los verbos, en cualquiera de los idiomas
+//
+// El mismo principio que rige el archivo de configuración, y por
+// la misma razón: quien escribe `zybank 記帳 …` no tiene por qué
+// saber en qué idioma se escribió el programa. Cada verbo tiene
+// una forma canónica —española, porque el programa lo es— y una
+// lista de alias en los idiomas registrados. Un diccionario
+// alias → canónico lo resuelve en una lectura.
+//
+// Lo que NO se hace es traducir el verbo según el idioma activo.
+// Sería lo obvio y sería un error: el idioma activo se lee de la
+// configuración, así que la orden que funciona hoy dejaría de
+// funcionar mañana porque alguien cambió una preferencia — y un
+// guion que llama a esta aplicación se rompería sin haber
+// cambiado. Los alias se aceptan TODOS, siempre, en cualquier
+// idioma; solo la salida sigue al idioma activo.
+//
+// EN: interfaz/órdenes.zy — the verbs, in any of the languages.
+// Same principle as the configuration file. What is NOT done is
+// translating the verb according to the active locale: that would
+// mean a command working today and failing tomorrow because
+// someone changed a preference, breaking scripts that never
+// changed. ALL aliases are accepted always; only the output
+// follows the active locale.
+// ============================================================
+
+# .interfaz_órdenes {
+
+    <# ../núcleo/mapa => mp
+
+    #> { canónico, verbos, alias_de, ayuda_líneas }
+
+    _pares() {
+        <~ [
+            ("iniciar", "iniciar"),   ("init", "iniciar"),
+            ("初期化", "iniciar"),     ("आरंभ", "iniciar"),
+
+            ("cuentas", "cuentas"),   ("accounts", "cuentas"),
+            ("口座", "cuentas"),       ("खाते", "cuentas"),
+
+            ("nueva", "nueva"),       ("new", "nueva"),
+            ("新規", "nueva"),         ("नया", "nueva"),
+
+            ("anotar", "anotar"),     ("record", "anotar"),
+            ("記帳", "anotar"),        ("दर्ज", "anotar"),
+
+            ("traspasar", "traspasar"), ("transfer", "traspasar"),
+            ("振替", "traspasar"),      ("स्थानांतरण", "traspasar"),
+
+            ("movimientos", "movimientos"), ("movements", "movimientos"),
+            ("取引", "movimientos"),        ("लेनदेन", "movimientos"),
+
+            ("resumen", "resumen"),   ("summary", "resumen"),
+            ("集計", "resumen"),       ("सारांश", "resumen"),
+
+            ("config", "config"),     ("settings", "config"),
+            ("設定", "config"),        ("सेटिंग", "config"),
+
+            ("idiomas", "idiomas"),   ("languages", "idiomas"),
+            ("言語", "idiomas"),       ("भाषाएँ", "idiomas"),
+
+            ("ayuda", "ayuda"),       ("help", "ayuda"),
+            ("助け", "ayuda"),         ("सहायता", "ayuda"),
+            ("-h", "ayuda"),          ("--help", "ayuda")
+        ]
+    }
+
+    // Devuelve la forma canónica, o "" si el verbo no se reconoce.
+    // La cadena vacía y no un error: un verbo mal escrito merece
+    // la ayuda, no una traza.
+    // EN: returns the canonical form, or "" if unrecognized — a
+    // mistyped verb deserves the help text, not a stack trace.
+    canónico(verbo) {
+        <~ mp::obtener_o(mp::desde_pares(_pares()), verbo, "")
+    }
+
+    verbos() {
+        <~ ["iniciar", "cuentas", "nueva", "anotar", "traspasar",
+            "movimientos", "resumen", "config", "idiomas", "ayuda"]
+    }
+
+    // Todos los alias de un verbo canónico, para la ayuda.
+    // EN: every alias of a canonical verb, for the help text.
+    alias_de(canon) {
+        salida = []
+        @ p:_pares() {
+            (a, c) = p
+            ? c == canon {
+                ? a <> canon { salida = salida$+ a }
+            }
+        }
+        <~ salida
+    }
+
+    ayuda_líneas() {
+        <~ [
+            "iniciar                                          ",
+            "cuentas                                          ",
+            "nueva <nombre> <moneda> [saldo]                   ",
+            "anotar <cuenta> <categoría> <monto> [glosa] [fecha]",
+            "traspasar <origen> <destino> <monto> [monto-destino] [glosa]",
+            "movimientos [cuenta] [cuántos]                    ",
+            "resumen [cuenta] [desde] [hasta]                  ",
+            "config [clave] [valor]                            ",
+            "idiomas                                           ",
+            "ayuda                                             "
+        ]
+    }
+}

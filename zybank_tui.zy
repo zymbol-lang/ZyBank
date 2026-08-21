@@ -1,0 +1,25 @@
+// ============================================================
+// zybank_tui.zy — el navegador a pantalla completa
+//
+// Punto de entrada aparte y no un verbo de `zybank.zy`, por una
+// razón concreta: `>>|` exige un terminal de verdad. Una orden que
+// abre modo crudo cuando la han tuberizado no es una orden, y
+// mezclar en un mismo ejecutable lo que se puede redirigir con lo
+// que no, obliga a explicarlo en la ayuda en vez de en el nombre.
+//
+// EN: zybank_tui.zy — the full-screen browser, a separate entry
+// point rather than a verb of `zybank.zy`: `>>|` needs a real
+// terminal, and mixing what can be piped with what cannot forces
+// the explanation into the help text instead of the name.
+// ============================================================
+
+<# ./interfaz/cli => cli
+<# ./pantalla/tui => tui
+
+(ok, err) = cli::arrancar("zybank.json")
+? !ok {
+    >> "✗ " err ¶
+}
+_? #1 {
+    tui::correr()
+}

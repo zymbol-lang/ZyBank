@@ -1,0 +1,446 @@
+// ============================================================
+// interfaz/cli.zy — la aplicación por órdenes
+//
+// La capa que traduce argumentos en llamadas al núcleo y
+// resultados en tablas. No tiene lógica propia: si algo decide
+// aquí lo que debería decidir el núcleo, está mal puesto.
+//
+// DOS COSAS QUE PARECEN DETALLES Y NO LO SON:
+//
+// 1. LA RUTA DE LA BASE NO PUEDE VENIR DE LA BASE. Es la única
+//    preferencia que no participa del «la base recuerda»: para
+//    leerla habría que abrir la base cuya ruta se está buscando.
+//    Sale del archivo JSON, de la variable de entorno o del valor
+//    por omisión, y `configuración/preferencias.zy` la sigue
+//    listando porque un archivo SÍ puede fijarla.
+//
+// 2. LA FECHA POR OMISIÓN ES HOY, Y ESO NO SE PUEDE PROBAR. Una
+//    salida que contiene la fecha de ejecución no tiene golden
+//    posible. Por eso `anotar` acepta fecha explícita y las
+//    pruebas siempre la pasan: lo que se comprueba es la
+//    aplicación, y el reloj no forma parte de ella.
+//
+// EN: interfaz/cli.zy — the command application. It translates
+// arguments into core calls and results into tables; it holds no
+// logic of its own. Two things that look like details: the
+// database path cannot come from the database (it is the one
+// preference outside "the database remembers"), and the default
+// date is today, which has no possible golden — hence every suite
+// passes the date explicitly.
+// ============================================================
+
+# .interfaz_cli {
+
+    <# ../núcleo/almacén => al
+    <# ../núcleo/dinero => din
+    <# ../núcleo/semilla => sem
+    <# ../núcleo/mapa => mp
+    <# ../configuración/monedas => mon
+    <# ../configuración/preferencias => pref
+    <# ../idioma/despacho => idi
+    <# ../presentación/tabla => tab
+    <# ./órdenes => ord
+
+    #> { ejecutar, arrancar }
+
+    ruta_base = "zybank.db"
+    ruta_json = "zybank.json"
+    prefs = #0
+
+    // Abre, migra y deja el idioma y la moneda fijados. Devuelve
+    // (ok, mensaje).
+    // EN: opens, migrates and leaves locale and currency set.
+    arrancar(json) {
+        ruta_json = json
+        // El archivo puede fijar la ruta de la base; la base no.
+        // EN: the file may set the database path; the database cannot.
+        (json_ok, del_archivo) = pref::leer_archivo(ruta_json)
+        ? del_archivo$? "base" {
+            ? del_archivo["base"] <> "" { ruta_base = del_archivo["base"] }
+        }
+
+        (ok, err) = al::abrir(ruta_base)
+        ? !ok { <~ (#0, err) }
+        al::migrar()
+
+        (_json_ok2, p) = pref::cargar(al::conexión(), ruta_json)
+        (válidas, avisos) = pref::validar(p, idi::idiomas())
+        prefs = válidas
+        idi::fijar(válidas["idioma"])
+
+        // Los avisos se dicen. Era el compromiso de `validar`: una
+        // moneda o un idioma que no se entienden se sustituyen por
+        // el valor por omisión Y se avisa, porque una configuración
+        // que se ignora en silencio es indistinguible de una que se
+        // aplicó.
+        // EN: warnings are voiced. That was `validar`'s bargain —
+        // configuration that is silently ignored is indistinguishable
+        // from configuration that was applied.
+        ? !json_ok {
+            >> "! " ruta_json ¶
+        }
+        @ a:avisos {
+            (qué, valor) = a
+            >> "! " qué ": " valor ¶
+        }
+        <~ (#1, "")
+    }
+
+    _moneda_de(nombre_cuenta) {
+        f = al::cuenta_por_nombre(nombre_cuenta)
+        ? f$! { <~ mon::obtener(prefs["moneda"]) }
+        <~ mon::obtener(f.moneda)
+    }
+
+    // ── Las órdenes ──────────────────────────────────────────
+
+    _iniciar() {
+        // El recorrido está aquí y no en `núcleo/semilla` porque
+        // pasarle a aquel módulo la función que crea categorías no
+        // se puede escribir hoy en los dos motores: BUG-ZYB-005
+        // (la VM rechaza una función de módulo como valor) y
+        // BUG-ZYB-001 (el tree-walker rechaza la lambda que sería
+        // el rodeo). La semilla expone la lista; quien tiene la
+        // base la recorre.
+        //
+        // EN: the walk lives here rather than in `núcleo/semilla`
+        // because handing that module the category-creating
+        // function cannot be written today on both engines —
+        // BUG-ZYB-005 (the VM rejects a module function as a value)
+        // and BUG-ZYB-001 (the tree-walker rejects the lambda that
+        // would be the workaround).
+        puestas = 0
+        @ c:sem::categorías() {
+            (clave, grupo, tipo) = c
+            (ok, _id) = al::crear_categoría(clave, grupo, tipo)
+            ? ok { puestas = °puestas + 1 }
+        }
+        >> idi::texto("msg.creado") ": " puestas ¶
+        <~ 0
+    }
+
+    _cuentas() {
+        filas_bd = al::cuentas()
+        ? filas_bd$# == 0 {
+            >> idi::texto("msg.sin_cuentas") ¶
+            <~ 0
+        }
+        enc = [idi::texto("campo.cuenta"), idi::texto("campo.moneda"), idi::texto("campo.saldo")]
+        filas = []
+        @ f:filas_bd {
+            m = mon::obtener(f.moneda)
+            s = al::saldo(f.id)
+            filas = filas$+ [f.nombre, f.moneda, din::formatear(s, m)]
+        }
+        @ l:tab::componer(enc, filas, ["izq", "izq", "der"]) {
+            >> l ¶
+        }
+        <~ 0
+    }
+
+    _nueva(args) {
+        ? args$# < 3 {
+            >> "nueva <nombre> <moneda> [saldo]" ¶
+            <~ 2
+        }
+        nombre = args[2]
+        código = args[3]
+        ? !mon::conocida(código) {
+            >> idi::texto("msg.monto_inválido") ": " código ¶
+            <~ 2
+        }
+        m = mon::obtener(código)
+        inicial = 0
+        ? args$# >= 4 {
+            (ok, v) = din::analizar(args[4], m)
+            ? !ok {
+                >> idi::texto("msg.monto_inválido") ": " args[4] ¶
+                <~ 2
+            }
+            inicial = v
+        }
+        (creada, id) = al::crear_cuenta(nombre, código, inicial)
+        ? !creada {
+            // `>> id` y no `>> "" id`: el segundo aborta cuando id
+            // es un error blando (BUG-ZYB-003).
+            // EN: `>> id`, not `>> "" id` — the latter aborts when
+            // id is a soft error (BUG-ZYB-003).
+            >> id ¶
+            <~ 1
+        }
+        >> idi::texto("msg.creado") ": " nombre " (" código ") " din::formatear(inicial, m) ¶
+        <~ 0
+    }
+
+    _anotar(args) {
+        ? args$# < 4 {
+            >> "anotar <cuenta> <categoría> <monto> [glosa] [fecha]" ¶
+            <~ 2
+        }
+        cta = al::cuenta_por_nombre(args[2])
+        ? cta$! {
+            >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
+            <~ 2
+        }
+        m = mon::obtener(cta.moneda)
+        clave_cat = args[3]
+        cat = al::categoría_por_clave(clave_cat)
+        cat_id = 0
+        ? cat$! {
+            // Una categoría que no existe se CREA, con el grupo y
+            // el tipo deducidos de su propia clave. Obligar a
+            // declararla antes sería obligar a interrumpir lo que
+            // se estaba anotando.
+            // EN: an unknown category is CREATED, with group and
+            // type inferred from its own key. Demanding it be
+            // declared first would mean interrupting the entry.
+            tipo = "gasto"
+            ? clave_cat$? "ingreso" { tipo = "ingreso" }
+            (hecha, nid) = al::crear_categoría(clave_cat, tipo ".otros", tipo)
+            ? !hecha {
+                >> nid ¶
+                <~ 1
+            }
+            cat_id = nid
+        }
+        _ {
+            cat_id = cat.id
+        }
+
+        (ok, monto) = din::analizar(args[4], m)
+        ? !ok {
+            >> idi::texto("msg.monto_inválido") ": " args[4] ¶
+            <~ 2
+        }
+        // El signo lo pone el TIPO de la categoría, no quien
+        // teclea. Escribir «-» delante de un gasto es una fuente
+        // de errores y aquí no hace falta: un gasto es negativo
+        // porque es un gasto.
+        // EN: the SIGN comes from the category's type, not from
+        // what was typed — an expense is negative because it is an
+        // expense.
+        cat2 = al::categoría_por_clave(clave_cat)
+        ? cat2.tipo == "gasto" {
+            ? monto > 0 { monto = 0 - monto }
+        }
+
+        glosa = ""
+        ? args$# >= 5 { glosa = args[5] }
+        fecha = ""
+        ? args$# >= 6 { fecha = args[6] }
+        _ { fecha = al::hoy() }
+
+        (anotado, err) = al::anotar(fecha, cta.id, cat_id, monto, glosa)
+        ? !anotado {
+            >> err ¶
+            <~ 1
+        }
+        >> idi::texto("msg.anotado") ": " din::formatear(monto, m) " " idi::categoría(clave_cat) ¶
+        <~ 0
+    }
+
+    _traspasar(args) {
+        ? args$# < 4 {
+            >> "traspasar <origen> <destino> <monto> [monto-destino] [glosa]" ¶
+            <~ 2
+        }
+        o = al::cuenta_por_nombre(args[2])
+        d = al::cuenta_por_nombre(args[3])
+        ? o$! {
+            >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
+            <~ 2
+        }
+        ? d$! {
+            >> idi::texto("msg.cuenta_no_existe") ": " args[3] ¶
+            <~ 2
+        }
+        ? o.id == d.id {
+            >> idi::texto("msg.misma_cuenta") ¶
+            <~ 2
+        }
+        mo = mon::obtener(o.moneda)
+        md = mon::obtener(d.moneda)
+        (ok, monto_o) = din::analizar(args[4], mo)
+        ? !ok {
+            >> idi::texto("msg.monto_inválido") ": " args[4] ¶
+            <~ 2
+        }
+        monto_d = monto_o
+        ? o.moneda <> d.moneda {
+            // Sin tasa inventada. Si las monedas difieren hay que
+            // decir cuánto llega, porque el programa no lo sabe y
+            // suponerlo sería falsificar un asiento.
+            // EN: no invented rate. If the currencies differ the
+            // destination amount must be stated — guessing it would
+            // be falsifying an entry.
+            ? args$# < 5 {
+                >> idi::texto("msg.moneda_distinta") ¶
+                <~ 2
+            }
+            (ok2, v2) = din::analizar(args[5], md)
+            ? !ok2 {
+                >> idi::texto("msg.monto_inválido") ": " args[5] ¶
+                <~ 2
+            }
+            monto_d = v2
+        }
+        _? args$# >= 5 {
+            (ok3, v3) = din::analizar(args[5], md)
+            ? ok3 { monto_d = v3 }
+        }
+
+        glosa = ""
+        ? args$# >= 6 { glosa = args[6] }
+        fecha = al::hoy()
+
+        (hecho, marca) = al::traspasar(fecha, o.id, d.id, monto_o, monto_d, glosa)
+        ? !hecho {
+            >> marca ¶
+            <~ 1
+        }
+        >> idi::texto("msg.traspasado") ": " din::formatear(monto_o, mo) " → " din::formatear(monto_d, md) ¶
+        <~ 0
+    }
+
+    _movimientos(args) {
+        id = 0
+        ? args$# >= 2 {
+            c = al::cuenta_por_nombre(args[2])
+            ? c$! {
+                >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
+                <~ 2
+            }
+            id = c.id
+        }
+        cuántos = 20
+        ? args$# >= 3 { cuántos = #|args[3]| }
+
+        filas_bd = al::movimientos(id, cuántos)
+        ? filas_bd$# == 0 {
+            >> idi::texto("msg.sin_movimientos") ¶
+            <~ 0
+        }
+        enc = [idi::texto("campo.fecha"), idi::texto("campo.cuenta"),
+               idi::texto("campo.categoría"), idi::texto("campo.monto"),
+               idi::texto("campo.glosa")]
+        filas = []
+        @ f:filas_bd {
+            m = mon::obtener(f.moneda)
+            nombre_cat = ""
+            // `$!` no sirve: una columna NULL no es un error, es
+            // `Unit` (GAP-ZYB-009).
+            // EN: `$!` will not do — a NULL column is not an error,
+            // it is `Unit` (GAP-ZYB-009).
+            ? al::es_nulo(f.categoría) { nombre_cat = idi::texto("acción.traspasar") }
+            _ { nombre_cat = idi::categoría(f.categoría) }
+            filas = filas$+ [f.fecha, f.cuenta_nombre, nombre_cat,
+                             din::formatear(f.monto, m), f.glosa]
+        }
+        @ l:tab::componer(enc, filas, ["izq", "izq", "izq", "der", "izq"]) {
+            >> l ¶
+        }
+        <~ 0
+    }
+
+    _resumen(args) {
+        id = 0
+        ? args$# >= 2 {
+            c = al::cuenta_por_nombre(args[2])
+            ? c$! {
+                >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
+                <~ 2
+            }
+            id = c.id
+        }
+        desde = "0000-01-01"
+        hasta = "9999-12-31"
+        ? args$# >= 3 { desde = args[3] }
+        ? args$# >= 4 { hasta = args[4] }
+
+        filas_bd = al::resumen_por_categoría(id, desde, hasta)
+        ? filas_bd$# == 0 {
+            >> idi::texto("msg.sin_movimientos") ¶
+            <~ 0
+        }
+        enc = [idi::texto("campo.moneda"), idi::texto("campo.categoría"),
+               idi::texto("campo.total"), idi::texto("campo.cuantos")]
+        filas = []
+        @ f:filas_bd {
+            m = mon::obtener(f.moneda)
+            filas = filas$+ [f.moneda, idi::categoría(f.categoría),
+                             din::formatear(f.total, m), "" f.cuantos]
+        }
+        @ l:tab::componer(enc, filas, ["izq", "izq", "der", "der"]) {
+            >> l ¶
+        }
+        <~ 0
+    }
+
+    _config(args) {
+        ? args$# < 2 {
+            @ k:pref::canónicas() {
+                >> k " = " prefs[k] ¶
+            }
+            <~ 0
+        }
+        clave = args[2]
+        ? args$# < 3 {
+            ? prefs$? clave { >> prefs[clave] ¶ }
+            <~ 0
+        }
+        valor = args[3]
+        (ok, err) = pref::recordar(al::conexión(), clave, valor)
+        ? !ok {
+            >> err ¶
+            <~ 1
+        }
+        prefs[clave]$~ valor
+        ? clave == "idioma" { idi::fijar(valor) }
+        >> clave " = " valor ¶
+        <~ 0
+    }
+
+    _idiomas() {
+        @ c:idi::idiomas() {
+            (completo, faltan) = idi::completo(c)
+            marca = "  "
+            ? c == idi::actual() { marca = "→ " }
+            estado = ""
+            ? !completo { estado = "  (" faltan$# ")" }
+            >> marca c "  " idi::nombre_idioma(c) estado ¶
+        }
+        <~ 0
+    }
+
+    _ayuda() {
+        >> idi::texto("app.nombre") " — " idi::texto("app.lema") ¶
+        >> "" ¶
+        @ l:ord::ayuda_líneas() {
+            >> "  " l ¶
+        }
+        >> "" ¶
+        >> idi::texto("menú.configuración") ": " ruta_json ¶
+        <~ 0
+    }
+
+    ejecutar(args) {
+        ? args$# == 0 { <~ _ayuda() }
+        verbo = ord::canónico(args[1])
+        ?? verbo {
+            "iniciar"     => { <~ _iniciar() }
+            "cuentas"     => { <~ _cuentas() }
+            "nueva"       => { <~ _nueva(args) }
+            "anotar"      => { <~ _anotar(args) }
+            "traspasar"   => { <~ _traspasar(args) }
+            "movimientos" => { <~ _movimientos(args) }
+            "resumen"     => { <~ _resumen(args) }
+            "config"      => { <~ _config(args) }
+            "idiomas"     => { <~ _idiomas() }
+            "ayuda"       => { <~ _ayuda() }
+            _             => {
+                >> args[1] "?" ¶
+                <~ _ayuda()
+            }
+        }
+    }
+}

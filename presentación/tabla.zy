@@ -1,0 +1,110 @@
+// ============================================================
+// presentación/tabla.zy — columnas que cuadran en cualquier idioma
+//
+// Una tabla de importes se lee por el borde derecho de los
+// números, así que la única pregunta que importa aquí es cuánto
+// ocupa cada celda EN COLUMNAS DE TERMINAL, que no es cuántos
+// caracteres tiene.
+//
+// «食費» son dos caracteres y CUATRO columnas. «शेष» son tres
+// grafemas y tres columnas. Contar caracteres funciona mientras
+// todo sea latino y deja de funcionar en cuanto la aplicación se
+// traduce — que es exactamente lo que esta aplicación hace. Por
+// eso todo el ancho pasa por `std/term::width` y no hay ni un
+// `$#` midiendo para alinear.
+//
+// EN: presentación/tabla.zy — columns that line up in any
+// language. The only question is how many TERMINAL COLUMNS a cell
+// occupies, which is not how many characters it has: «食費» is two
+// characters and FOUR columns. Counting characters works until the
+// application is translated. Every width goes through
+// `std/term::width`; not one `$#` measures for alignment.
+// ============================================================
+
+# .presentación_tabla {
+
+    <# std/term => tm
+
+    #> { anchos, línea, separador, componer }
+
+    // El ancho de cada columna: el máximo entre el encabezado y
+    // todas sus celdas.
+    // EN: each column's width — the max over its header and cells.
+    anchos(encabezados, filas) {
+        a = []
+        @ h:encabezados {
+            a = a$+ tm::width(h)
+        }
+        @ f:filas {
+            i = 1
+            @ i <= f$# {
+                w = tm::width(f[i])
+                ? w > a[i] { a[i]$~ w }
+                i++
+            }
+        }
+        <~ a
+    }
+
+    // `alineaciones` es un arreglo de "izq" o "der". Los importes
+    // van a la derecha SIEMPRE: es lo que permite comparar dos
+    // cifras de un vistazo, y es la razón de que exista esta
+    // función en vez de imprimir con tabuladores.
+    //
+    // EN: `alineaciones` holds "izq" or "der". Amounts are ALWAYS
+    // right-aligned — that is what lets two figures be compared at
+    // a glance, and why this function exists instead of tabs.
+    línea(celdas, a, alineaciones, sep) {
+        salida = ""
+        i = 1
+        @ i <= celdas$# {
+            c = celdas[i]
+            ? alineaciones[i] == "der" {
+                c = tm::pad_left(c, a[i])
+            }
+            _ {
+                c = tm::pad_right(c, a[i])
+            }
+            ? i == 1 { salida = c }
+            _ { salida = salida sep c }
+            i++
+        }
+        <~ salida
+    }
+
+    separador(a, sep, carácter) {
+        salida = ""
+        i = 1
+        @ i <= a$# {
+            trozo = ""
+            j = 1
+            @ j <= a[i] {
+                trozo = trozo carácter
+                j++
+            }
+            ? i == 1 { salida = trozo }
+            _ { salida = salida sep trozo }
+            i++
+        }
+        <~ salida
+    }
+
+    // Devuelve un arreglo de líneas en vez de imprimir. Quien la
+    // llama decide si van a la pantalla, a un archivo o a una
+    // prueba — y una prueba que compara líneas es lo que hace que
+    // esta tabla tenga golden.
+    //
+    // EN: returns an array of lines rather than printing. The
+    // caller decides where they go, which is what gives this table
+    // a golden file.
+    componer(encabezados, filas, alineaciones) {
+        a = anchos(encabezados, filas)
+        salida = []
+        salida = salida$+ línea(encabezados, a, alineaciones, "  ")
+        salida = salida$+ separador(a, "  ", "─")
+        @ f:filas {
+            salida = salida$+ línea(f, a, alineaciones, "  ")
+        }
+        <~ salida
+    }
+}

@@ -1,0 +1,34 @@
+== migrar es idempotente ==
+ok   dos migraciones, ninguna categoría
+== sembrar es idempotente ==
+ok   primera siembra
+ok   segunda siembra no duplica
+ok   total de categorías
+ok   solo gastos
+ok   solo ingresos
+== cuentas en dos monedas con exponentes distintos ==
+ok   cuenta CLP creada
+ok   cuenta USD creada
+ok   nombre repetido se rechaza
+ok   saldo inicial CLP
+ok   saldo inicial USD
+== una comilla es un carácter, no una inyección ==
+ok   la glosa llegó entera
+ok   la tabla sigue en pie
+== el saldo sigue a los movimientos ==
+ok   saldo tras dos movimientos
+== el traspaso es atómico y respeta las dos monedas ==
+ok   traspaso hecho
+ok   origen descontado
+ok   destino aumentado en SU moneda
+== los dos asientos existen y comparten marca ==
+ok   dos asientos marcados
+== a la misma cuenta no se traspasa ==
+ok   rechazado
+ok   y dice por qué
+ok   sin asientos nuevos
+== el resumen no suma entre monedas ni cuenta traspasos ==
+ok   una fila por categoría, todas CLP
+ok   ninguna fila mezcla monedas
+ok   el gasto es el gasto
+TODO BIEN

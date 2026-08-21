@@ -1,0 +1,120 @@
+// ============================================================
+// pruebas/verificación_idioma.zy — el contrato de los catálogos
+//
+// Comprueba que los cuatro idiomas responden a todas las claves del
+// idioma base y que ninguna traducción es la clave misma. Esa
+// segunda mitad es la que de verdad atrapa el olvido: añadir la
+// clave con su propio nombre pasa cualquier comprobación de
+// presencia, y el prefijo de dominio es lo que la hace decidible —
+// «cat.gasto.ocio» nunca es una traducción legítima de nada.
+//
+// Comprueba además lo que separa la i18n de interfaz de la i18n de
+// datos: una categoría que el usuario inventó no está en ningún
+// catálogo y tiene que mostrarse tal como él la escribió, no
+// desaparecer.
+//
+// EN: pruebas/verificación_idioma.zy — the catalogue contract.
+// Every locale answers every base key, and no translation equals
+// its own key — the half that catches the real omission, made
+// decidable by the domain prefix. Also checks what separates
+// interface i18n from data i18n: a category the user invented is
+// in no catalogue and must show as they wrote it.
+// ============================================================
+
+<# ../idioma/despacho => t
+
+// El contador NO puede vivir en el ámbito del archivo: una función
+// no lo alcanza (GUIDE.md § 10b — una llamada directa está aislada) y
+// `zymbol check` no lo dice (ERROR-ZYB-002). Escrito así, la suite
+// pasaba mientras no fallara nada y ABORTABA en cuanto algo fallaba
+// — una suite incapaz de informar de un fallo, que es el defecto que
+// zyquality documenta en los runners que decidían con `grep -q FAIL`.
+//
+// Por eso cada comprobación DEVUELVE 1 si falla y 0 si pasa, y el
+// cuerpo del archivo suma. El contador es del archivo y solo el
+// archivo lo toca.
+//
+// EN: the counter cannot live in file scope — a function cannot reach
+// it (GUIDE.md § 10b) and `zymbol check` does not say so
+// (ERROR-ZYB-002). Written that way the suite passed while nothing
+// failed and ABORTED as soon as something did: a suite unable to
+// report a failure. Each check RETURNS 1 on failure, 0 on pass, and
+// the file body sums.
+
+fallos = 0
+
+igual(qué, dado, esperado) {
+    ? dado == esperado {
+        >> "ok   " qué ¶
+        <~ 0
+    }
+    >> "FALLO " qué ": " dado " <> " esperado ¶
+    <~ 1
+}
+
+>> "== los cuatro idiomas están completos ==" ¶
+// `°fallos` y no `fallos`: dentro de un `@` el acumulador se ancla
+// con el prefijo al ámbito de ARRIBA, o el analizador avisa de tiempo
+// de vida ambiguo y el valor muere con el bucle (GUIDE.md § "Hot
+// Definition Operator").
+// EN: `°fallos`, not `fallos` — inside an `@` the accumulator anchors
+// to the scope ABOVE with the prefix form.
+@ c:t::idiomas() {
+    (completo, faltan) = t::completo(c)
+    ? completo {
+        >> "ok   " c " (" t::nombre_idioma(c) ")" ¶
+    }
+    _ {
+        >> "FALLO " c ": faltan " faltan$# ¶
+        @ k:faltan {
+            >> "        " k ¶
+        }
+        fallos = °fallos + 1
+    }
+}
+
+>> "== el contrato no ha encogido ==" ¶
+fallos = fallos + igual("claves del idioma base", t::claves()$# , 52)
+fallos = fallos + igual("idiomas registrados", t::idiomas()$#, 4)
+
+>> "== la misma clave, cuatro idiomas ==" ¶
+t::fijar("es")
+fallos = fallos + igual("es", t::texto("campo.saldo"), "Saldo")
+t::fijar("en")
+fallos = fallos + igual("en", t::texto("campo.saldo"), "Balance")
+t::fijar("ja")
+fallos = fallos + igual("ja", t::texto("campo.saldo"), "残高")
+t::fijar("hi")
+fallos = fallos + igual("hi", t::texto("campo.saldo"), "शेष")
+
+>> "== las categorías guardadas se traducen ==" ¶
+t::fijar("es")
+fallos = fallos + igual("es", t::categoría("gasto.alimentación"), "Alimentación")
+t::fijar("ja")
+fallos = fallos + igual("ja", t::categoría("gasto.alimentación"), "食費")
+t::fijar("en")
+fallos = fallos + igual("en", t::categoría("gasto.alimentación"), "Food")
+
+>> "== una categoría inventada sobrevive al cambio de idioma ==" ¶
+t::fijar("es")
+fallos = fallos + igual("es", t::categoría("gasto.mis_gatos"), "gasto.mis_gatos")
+t::fijar("ja")
+fallos = fallos + igual("ja", t::categoría("gasto.mis_gatos"), "gasto.mis_gatos")
+
+>> "== fijar el idioma fija la escritura de las cifras ==" ¶
+t::fijar("hi")
+n = 2026
+fallos = fallos + igual("hindi escribe en devanagari", "" n, "२०२६")
+t::fijar("es")
+fallos = fallos + igual("español escribe en ASCII", "" n, "2026")
+t::fijar("ja")
+fallos = fallos + igual("japonés escribe en ASCII", "" n, "2026")
+
+>> "" ¶
+#09#
+? fallos == 0 {
+    >> "TODO BIEN" ¶
+}
+_ {
+    >> "FALLOS: " fallos ¶
+}

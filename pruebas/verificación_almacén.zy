@@ -1,0 +1,172 @@
+// ============================================================
+// pruebas/verificación_almacén.zy — la base de datos
+//
+// Necesita ODBC con un DSN llamado `zymbol_sqlite`
+// (zyquality/corpus/stdlib/README-odbc.md tiene la línea por
+// plataforma). Sin él no corre, y esa es la razón de que esta
+// suite esté separada de las otras tres: las demás son lenguaje
+// puro y corren en cualquier parte.
+//
+// Lo que comprueba, por orden de lo que costaría más si se
+// rompiera:
+//
+// 1. El TRASPASO ES ATÓMICO. Son dos asientos que viven o mueren
+//    juntos, y media transferencia no es un estado que la base
+//    pueda tener.
+// 2. Los saldos son por cuenta y por moneda, y nunca se suman
+//    entre monedas — «−100000 CLP + 10500 USD» no es dinero de
+//    nada.
+// 3. Los traspasos NO cuentan como ingreso ni como gasto.
+// 4. Una comilla en una glosa es un carácter y no una inyección.
+// 5. Migrar dos veces deja el mismo estado que migrar una.
+//
+// Las fechas van siempre explícitas: una salida con la fecha de
+// hoy dentro no tiene golden posible.
+//
+// EN: pruebas/verificación_almacén.zy — the database. Needs ODBC
+// with a `zymbol_sqlite` DSN, which is why it is separate from the
+// other three suites (those are pure language and run anywhere).
+// Checks, in order of what breaking would cost: the transfer is
+// atomic; balances are per account and per currency and never
+// summed across currencies; transfers count as neither income nor
+// expense; a quote in a note is a character, not an injection; and
+// migrating twice leaves the same state as migrating once.
+// ============================================================
+
+<# ../núcleo/almacén => a
+<# ../núcleo/dinero => d
+<# ../núcleo/semilla => sem
+<# ../configuración/monedas => m
+
+// El contador NO puede vivir en el ámbito del archivo: una función
+// no lo alcanza (GUIDE.md § 10b — una llamada directa está aislada) y
+// `zymbol check` no lo dice (ERROR-ZYB-002). Escrito así, la suite
+// pasaba mientras no fallara nada y ABORTABA en cuanto algo fallaba
+// — una suite incapaz de informar de un fallo, que es el defecto que
+// zyquality documenta en los runners que decidían con `grep -q FAIL`.
+//
+// Por eso cada comprobación DEVUELVE 1 si falla y 0 si pasa, y el
+// cuerpo del archivo suma. El contador es del archivo y solo el
+// archivo lo toca.
+//
+// EN: the counter cannot live in file scope — a function cannot reach
+// it (GUIDE.md § 10b) and `zymbol check` does not say so
+// (ERROR-ZYB-002). Written that way the suite passed while nothing
+// failed and ABORTED as soon as something did: a suite unable to
+// report a failure. Each check RETURNS 1 on failure, 0 on pass, and
+// the file body sums.
+
+fallos = 0
+
+igual(qué, dado, esperado) {
+    ? dado == esperado {
+        >> "ok   " qué ¶
+        <~ 0
+    }
+    >> "FALLO " qué ": " dado " <> " esperado ¶
+    <~ 1
+}
+
+// Siembra desde aquí, por la misma razón que la CLI: no se puede
+// pasar la función que crea (BUG-ZYB-005 / BUG-ZYB-001).
+// EN: seeds here, for the same reason the CLI does.
+sembrar() {
+    puestas = 0
+    @ c:sem::categorías() {
+        (clave, grupo, tipo) = c
+        (ok, _id) = a::crear_categoría(clave, grupo, tipo)
+        ? ok { puestas = °puestas + 1 }
+    }
+    <~ puestas
+}
+
+ruta = "zybank_prueba.db"
+<\ "rm -f zybank_prueba.db" \>
+
+(abierta, err) = a::abrir(ruta)
+? !abierta {
+    >> "SIN BASE: " err ¶
+    >> "(requiere el DSN zymbol_sqlite — ver corpus/stdlib/README-odbc.md)" ¶
+}
+_ {
+    >> "== migrar es idempotente ==" ¶
+    a::migrar()
+    a::migrar()
+    fallos = fallos + igual("dos migraciones, ninguna categoría", a::categorías("")$#, 0)
+
+    >> "== sembrar es idempotente ==" ¶
+    fallos = fallos + igual("primera siembra", sembrar(), 12)
+    fallos = fallos + igual("segunda siembra no duplica", sembrar(), 0)
+    fallos = fallos + igual("total de categorías", a::categorías("")$#, 12)
+    fallos = fallos + igual("solo gastos", a::categorías("gasto")$#, 8)
+    fallos = fallos + igual("solo ingresos", a::categorías("ingreso")$#, 4)
+
+    >> "== cuentas en dos monedas con exponentes distintos ==" ¶
+    (c1ok, c1) = a::crear_cuenta("Corriente", "CLP", 500000)
+    (c2ok, c2) = a::crear_cuenta("Ahorro", "USD", 120050)
+    fallos = fallos + igual("cuenta CLP creada", c1ok, #1)
+    fallos = fallos + igual("cuenta USD creada", c2ok, #1)
+    fallos = fallos + igual("nombre repetido se rechaza", (a::crear_cuenta("Corriente", "CLP", 0))[1], #0)
+    fallos = fallos + igual("saldo inicial CLP", d::formatear(a::saldo(c1), m::obtener("CLP")), "$500.000")
+    fallos = fallos + igual("saldo inicial USD", d::formatear(a::saldo(c2), m::obtener("USD")), "$1,200.50")
+
+    >> "== una comilla es un carácter, no una inyección ==" ¶
+    alim = a::categoría_por_clave("gasto.alimentación")
+    a::anotar("2026-08-01", c1, alim.id, 0 - 25990, "Feria O'Higgins")
+    f = a::movimientos(c1, 1)
+    fallos = fallos + igual("la glosa llegó entera", f[1].glosa, "Feria O'Higgins")
+    fallos = fallos + igual("la tabla sigue en pie", a::categorías("")$#, 12)
+
+    >> "== el saldo sigue a los movimientos ==" ¶
+    suel = a::categoría_por_clave("ingreso.sueldo")
+    a::anotar("2026-08-05", c1, suel.id, 1200000, "Sueldo")
+    fallos = fallos + igual("saldo tras dos movimientos",
+          d::formatear(a::saldo(c1), m::obtener("CLP")), "$1.674.010")
+
+    >> "== el traspaso es atómico y respeta las dos monedas ==" ¶
+    (hecho, _marca) = a::traspasar("2026-08-06", c1, c2, 100000, 10500, "Cambio")
+    fallos = fallos + igual("traspaso hecho", hecho, #1)
+    fallos = fallos + igual("origen descontado",
+          d::formatear(a::saldo(c1), m::obtener("CLP")), "$1.574.010")
+    fallos = fallos + igual("destino aumentado en SU moneda",
+          d::formatear(a::saldo(c2), m::obtener("USD")), "$1,305.50")
+
+    >> "== los dos asientos existen y comparten marca ==" ¶
+    todos = a::movimientos(0, 50)
+    con_marca = 0
+    @ mv:todos {
+        ? !a::es_nulo(mv.traspaso) { con_marca = °con_marca + 1 }
+    }
+    fallos = fallos + igual("dos asientos marcados", con_marca, 2)
+
+    >> "== a la misma cuenta no se traspasa ==" ¶
+    (mal, razón) = a::traspasar("2026-08-07", c1, c1, 1000, 1000, "")
+    fallos = fallos + igual("rechazado", mal, #0)
+    fallos = fallos + igual("y dice por qué", razón, "misma_cuenta")
+    fallos = fallos + igual("sin asientos nuevos", a::movimientos(0, 50)$#, 4)
+
+    >> "== el resumen no suma entre monedas ni cuenta traspasos ==" ¶
+    r = a::resumen_por_categoría(0, "2026-08-01", "2026-08-31")
+    fallos = fallos + igual("una fila por categoría, todas CLP", r$#, 2)
+    solo_clp = #1
+    @ fila:r {
+        ? fila.moneda <> "CLP" { solo_clp = °solo_clp && #0 }
+    }
+    fallos = fallos + igual("ninguna fila mezcla monedas", solo_clp, #1)
+    total_alim = 0
+    @ fila:r {
+        ? fila.categoría == "gasto.alimentación" { total_alim = °total_alim + fila.total }
+    }
+    fallos = fallos + igual("el gasto es el gasto", d::formatear(total_alim, m::obtener("CLP")), "-$25.990")
+
+    a::cerrar()
+    <\ "rm -f zybank_prueba.db" \>
+}
+
+>> "" ¶
+? fallos == 0 {
+    >> "TODO BIEN" ¶
+}
+_ {
+    >> "FALLOS: " fallos ¶
+}

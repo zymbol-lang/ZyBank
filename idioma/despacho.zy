@@ -1,0 +1,194 @@
+// ============================================================
+// idioma/despacho.zy — el despachador de idioma
+//
+// Toda cadena que ve una persona pasa por aquí, y solo por aquí.
+// El idioma activo vive como ESTADO DEL MÓDULO: el estado se
+// comparte por ruta de archivo, así que cualquier módulo que
+// importe este ve la misma selección sin que nadie tenga que
+// arrastrar un parámetro de idioma por la cadena de llamadas.
+//
+// Fijar el idioma hace DOS cosas, y la segunda es la que no se ve:
+// cambia el catálogo y cambia la ESCRITURA DE LAS CIFRAS. El
+// mode-switch numeral es global al proceso, así que ponerlo aquí
+// hace que cada número que el programa imprima —importes, saldos,
+// fechas de pantalla, índices de menú— siga al idioma sin que un
+// solo sitio que formatea tenga que enterarse. Es el tercer
+// mecanismo de i18n (USERAPPI18N §14) y el único que no necesita
+// una entrada de catálogo por cadena, sino una por idioma.
+//
+// La contrapartida está documentada donde toca: `núcleo/almacén`
+// fuerza `#09#` antes de hablar con el sistema de archivos, con el
+// intérprete de órdenes y con la base, porque una fecha en
+// devanagari no es una fecha ISO y un archivo llamado «dato४२» no
+// lo vuelve a abrir nadie.
+//
+// EN: idioma/despacho.zy — the i18n dispatcher, the single entry
+// point for every user-visible string. The active locale is module
+// state, shared per file path, so nothing carries a locale
+// parameter. Setting the locale does two things: it swaps the
+// catalogue and it switches the DIGIT SCRIPT — process-global, so
+// every number the program prints follows the language with no
+// formatting site aware of it. `núcleo/almacén` forces `#09#`
+// before touching files, the shell and the database.
+// ============================================================
+
+# .idioma_despacho {
+
+    <# ./español => es
+    <# ./english => en
+    <# ./日本語 => ja
+    <# ./हिन्दी => hi
+    <# ../núcleo/mapa => mp
+
+    #> {
+        fijar
+        actual
+        idiomas
+        nombre_idioma
+        texto
+        categoría
+        grupo
+        claves
+        completo
+    }
+
+    idioma_actual = "es"
+    catálogo_actual = #0
+    cargado = "«"
+
+    // Códigos ISO 639-1. No se traducen: son un convenio. El
+    // español va primero porque el programa está escrito en él.
+    // EN: ISO 639-1 codes, an international convention, untranslated.
+    idiomas() { <~ ["es", "en", "ja", "hi"] }
+
+    _pares_de(código) {
+        ?? código {
+            "en" => { <~ en::pares() }
+            "ja" => { <~ ja::pares() }
+            "hi" => { <~ hi::pares() }
+            _    => { <~ es::pares() }
+        }
+    }
+
+    nombre_idioma(código) {
+        ?? código {
+            "en" => { <~ en::nombre() }
+            "ja" => { <~ ja::nombre() }
+            "hi" => { <~ hi::nombre() }
+            _    => { <~ es::nombre() }
+        }
+    }
+
+    // El catálogo se construye una vez por idioma y se guarda. Sin
+    // esto cada `texto()` reconstruiría un diccionario de 52 claves
+    // — barato de escribir y caro de ejecutar, que es la clase de
+    // coste que no aparece hasta que la tabla tiene cien filas.
+    //
+    // EN: the catalogue is built once per locale and kept. Without
+    // this every `texto()` would rebuild a 52-key dictionary.
+    _asegurar() {
+        ? cargado <> idioma_actual {
+            catálogo_actual = mp::desde_pares(_pares_de(idioma_actual))
+            cargado = idioma_actual
+        }
+    }
+
+    actual() { <~ idioma_actual }
+
+    // Escribe estado y no devuelve valor, deliberadamente. Es la
+    // forma que serpiente adoptó tras HLZ-SRP-001 —el tree-walker
+    // perdía la escritura cuando una función de módulo escribía
+    // estado y además retornaba con `<~`— y se queda ahora que está
+    // corregido, porque separar el cálculo del efecto es buena
+    // forma por sí sola y aquel fallo era silencioso.
+    //
+    // EN: writes state and deliberately returns nothing — the shape
+    // serpiente adopted after HLZ-SRP-001 (fixed in v0.0.8), kept
+    // because separating computation from effect is good shape and
+    // that failure was silent.
+    fijar(código) {
+        idioma_actual = código
+        // La escritura de las cifras sigue al idioma. Añadir un
+        // idioma con otra escritura es una rama más, no una
+        // revisión de todo lo que imprime números.
+        // EN: the digit script follows the language.
+        ?? código {
+            "hi" => { #०९# }
+            _    => { #09# }
+        }
+    }
+
+    // Respaldo a la propia clave. No es indulgencia: hace decidible
+    // la regla «traducción == clave ⇒ falta», y como toda clave
+    // lleva prefijo de dominio, ninguna traducción legítima puede
+    // coincidir con su clave por accidente — ni siquiera en el
+    // idioma base.
+    //
+    // EN: falls back to the key itself. Not leniency: it makes
+    // "translation == key ⇒ missing" decidable, and since every key
+    // carries a domain prefix no legitimate translation can equal
+    // its key by accident, not even in the base language.
+    texto(clave) {
+        _asegurar()
+        <~ mp::obtener_o(catálogo_actual, clave, clave)
+    }
+
+    // La clave que está GUARDADA en la base ("gasto.alimentación")
+    // no es la clave del catálogo ("cat.gasto.alimentación"): el
+    // prefijo lo pone esta función. Así el dato guardado no lleva
+    // dentro la convención de nombres del catálogo, y una categoría
+    // que el usuario inventó —que no está en ningún catálogo— se
+    // muestra tal como él la escribió en lugar de desaparecer.
+    //
+    // EN: the key STORED in the database ("gasto.alimentación") is
+    // not the catalogue key ("cat.gasto.alimentación") — this
+    // function adds the prefix. A category the user invented is
+    // shown as they wrote it instead of vanishing.
+    categoría(clave_guardada) {
+        _asegurar()
+        <~ mp::obtener_o(catálogo_actual, "cat." clave_guardada, clave_guardada)
+    }
+
+    grupo(clave_guardada) {
+        _asegurar()
+        <~ mp::obtener_o(catálogo_actual, "grupo." clave_guardada, clave_guardada)
+    }
+
+    // El contrato: las claves del idioma base. Cualquier otro
+    // idioma tiene que responder a todas.
+    // EN: the contract — the base language's keys.
+    claves() {
+        <~ mp::claves(mp::desde_pares(es::pares()))
+    }
+
+    // Devuelve (completo, faltantes) para un idioma. Lo usa
+    // pruebas/verificación_idioma.zy, y la usa también la
+    // configuración: un idioma incompleto no debería poder
+    // seleccionarse en silencio.
+    //
+    // EN: returns (complete, missing) for a locale. Used by the
+    // suite and by configuration — an incomplete locale should not
+    // be silently selectable.
+    completo(código) {
+        base = mp::desde_pares(es::pares())
+        otro = mp::desde_pares(_pares_de(código))
+        faltan = []
+        @ k:base {
+            ? !(otro$? k) {
+                faltan = faltan$+ k
+            }
+            _ {
+                // El caso identidad: traducido a sí mismo es no
+                // traducido, y el prefijo de dominio garantiza que
+                // eso nunca es un acierto.
+                // EN: the identity case — translated to itself is
+                // untranslated, and the domain prefix guarantees
+                // that is never a legitimate hit.
+                ? otro[k] == k {
+                    faltan = faltan$+ k
+                }
+            }
+        }
+        <~ (faltan$# == 0, faltan)
+    }
+}

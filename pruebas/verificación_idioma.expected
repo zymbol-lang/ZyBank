@@ -1,0 +1,25 @@
+== los cuatro idiomas están completos ==
+ok   es (Español)
+ok   en (English)
+ok   ja (日本語)
+ok   hi (हिन्दी)
+== el contrato no ha encogido ==
+ok   claves del idioma base
+ok   idiomas registrados
+== la misma clave, cuatro idiomas ==
+ok   es
+ok   en
+ok   ja
+ok   hi
+== las categorías guardadas se traducen ==
+ok   es
+ok   ja
+ok   en
+== una categoría inventada sobrevive al cambio de idioma ==
+ok   es
+ok   ja
+== fijar el idioma fija la escritura de las cifras ==
+ok   hindi escribe en devanagari
+ok   español escribe en ASCII
+ok   japonés escribe en ASCII
+TODO BIEN

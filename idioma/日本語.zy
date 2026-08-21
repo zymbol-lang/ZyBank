@@ -1,0 +1,90 @@
+// ============================================================
+// idioma/日本語.zy — 日本語 (ja).
+//
+// Cada glifo ocupa DOS columnas en un terminal, así que este
+// catálogo es el que decide si la tabla de presentación está
+// midiendo de verdad con `std/term::width` o contando grafemas y
+// teniendo suerte con el latín.
+//
+// Contrato: código · nombre · pares. El catálogo se escribe como
+// lista de pares y núcleo/mapa.zy lo vuelve diccionario; el porqué
+// está allí.
+//
+// EN: Japanese locale. Every glyph is TWO terminal columns, so
+// this catalogue is what decides whether the table is really
+// measuring with `std/term::width` or counting graphemes and
+// getting lucky with Latin.
+// ============================================================
+
+# .idioma_日本語 {
+
+    #> { código, nombre, pares }
+
+    código() { <~ "ja" }
+    nombre() { <~ "日本語" }
+
+    pares() {
+        <~ [
+            ("app.nombre",             "ZyBank"),
+            ("app.lema",               "収入と支出"),
+
+            ("menú.cuentas",           "口座"),
+            ("menú.movimientos",       "取引"),
+            ("menú.resumen",           "集計"),
+            ("menú.configuración",     "設定"),
+            ("menú.salir",             "終了"),
+
+            ("campo.fecha",            "日付"),
+            ("campo.cuenta",           "口座"),
+            ("campo.categoría",        "分類"),
+            ("campo.monto",            "金額"),
+            ("campo.glosa",            "摘要"),
+            ("campo.saldo",            "残高"),
+            ("campo.moneda",           "通貨"),
+            ("campo.total",            "合計"),
+            ("campo.cuantos",          "件数"),
+
+            ("tipo.ingreso",           "収入"),
+            ("tipo.gasto",             "支出"),
+
+            ("grupo.ingreso.trabajo",  "仕事"),
+            ("grupo.ingreso.otros",    "その他の収入"),
+            ("grupo.gasto.hogar",      "住まい"),
+            ("grupo.gasto.personal",   "個人"),
+            ("grupo.gasto.deberes",    "義務"),
+
+            ("cat.ingreso.sueldo",     "給与"),
+            ("cat.ingreso.honorarios", "報酬"),
+            ("cat.ingreso.intereses",  "利息"),
+            ("cat.ingreso.regalo",     "贈与"),
+            ("cat.gasto.alimentación", "食費"),
+            ("cat.gasto.vivienda",     "住居費"),
+            ("cat.gasto.servicios",    "公共料金"),
+            ("cat.gasto.transporte",   "交通費"),
+            ("cat.gasto.salud",        "医療費"),
+            ("cat.gasto.educación",    "教育費"),
+            ("cat.gasto.ocio",         "娯楽費"),
+            ("cat.gasto.impuestos",    "税金"),
+
+            ("acción.anotar",          "記帳"),
+            ("acción.listar",          "一覧"),
+            ("acción.traspasar",       "振替"),
+            ("acción.resumir",         "集計"),
+
+            ("msg.sin_movimientos",    "取引がありません"),
+            ("msg.sin_cuentas",        "口座がまだありません"),
+            ("msg.monto_inválido",     "この通貨では無効な金額です"),
+            ("msg.cuenta_no_existe",   "その口座はありません"),
+            ("msg.misma_cuenta",       "振替元と振替先が同じ口座です"),
+            ("msg.moneda_distinta",    "口座の通貨が異なります。振替先の金額を指定してください"),
+            ("msg.creado",             "作成しました"),
+            ("msg.anotado",            "記帳しました"),
+            ("msg.traspasado",         "振り替えました"),
+
+            ("info.entradas",          "入金"),
+            ("info.salidas",           "出金"),
+            ("info.neto",              "差引"),
+            ("info.periodo",           "期間")
+        ]
+    }
+}

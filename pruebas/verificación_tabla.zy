@@ -1,0 +1,90 @@
+// ============================================================
+// pruebas/verificación_tabla.zy — que las columnas cuadren
+//
+// El invariante es uno solo y no depende del idioma: TODAS las
+// líneas de una tabla tienen el mismo ancho en columnas de
+// terminal. Se comprueba con `std/term::width`, no con `$#`,
+// porque la diferencia entre las dos medidas es justo lo que esta
+// prueba existe para vigilar: «食費» son dos caracteres y cuatro
+// columnas.
+//
+// Se cruzan idiomas con monedas a propósito, incluidas las
+// combinaciones raras —hindi con dinar kuwaití, japonés con peso
+// chileno—, porque el idioma de quien lee no dice en qué moneda
+// tiene el dinero y la tabla tiene que cuadrar igual.
+//
+// EN: pruebas/verificación_tabla.zy — columns that line up. One
+// invariant, independent of language: EVERY line of a table has
+// the same width in terminal columns, measured with
+// `std/term::width` rather than `$#` — the difference between the
+// two is exactly what this checks. Locales are crossed with
+// currencies on purpose, odd pairs included.
+// ============================================================
+
+<# ../presentación/tabla => tb
+<# ../idioma/despacho => t
+<# ../núcleo/dinero => d
+<# ../configuración/monedas => m
+<# std/term => tm
+
+fallos = 0
+
+cuadra(código, moneda) {
+    t::fijar(código)
+    mon = m::obtener(moneda)
+    enc = [t::texto("campo.fecha"), t::texto("campo.categoría"),
+           t::texto("campo.monto"), t::texto("campo.glosa")]
+    filas = [
+        ["2026-08-01", t::categoría("gasto.alimentación"), d::formatear(0 - 25990, mon), "Feria"],
+        ["2026-08-05", t::categoría("ingreso.sueldo"),     d::formatear(1200000, mon),  "Sueldo agosto"],
+        ["2026-08-11", t::categoría("gasto.transporte"),   d::formatear(0 - 1490, mon), ""]
+    ]
+    líneas = tb::componer(enc, filas, ["izq", "izq", "der", "izq"])
+    ref = tm::width(líneas[1])
+    malas = 0
+    @ l:líneas {
+        ? tm::width(l) <> ref { malas++ }
+    }
+    #09#
+    ? malas == 0 {
+        >> "ok   " código "/" moneda " ancho=" ref ¶
+        <~ 0
+    }
+    >> "FALLO " código "/" moneda ": " malas " líneas descuadradas" ¶
+    <~ 1
+}
+
+>> "== cada idioma con una moneda de su sitio ==" ¶
+fallos = fallos + cuadra("es", "CLP")
+fallos = fallos + cuadra("en", "USD")
+fallos = fallos + cuadra("ja", "JPY")
+fallos = fallos + cuadra("hi", "KWD")
+
+>> "== y con monedas que no son de su sitio ==" ¶
+fallos = fallos + cuadra("ja", "CLP")
+fallos = fallos + cuadra("hi", "USD")
+fallos = fallos + cuadra("es", "KWD")
+fallos = fallos + cuadra("en", "EUR")
+
+>> "== el ancho se mide en columnas, no en caracteres ==" ¶
+mide(qué, texto, columnas, caracteres) {
+    w = tm::width(texto)
+    n = texto$#
+    ? w == columnas && n == caracteres {
+        >> "ok   " qué " (" w " columnas, " n " caracteres)" ¶
+        <~ 0
+    }
+    >> "FALLO " qué ": " w " columnas, " n " caracteres" ¶
+    <~ 1
+}
+fallos = fallos + mide("食費 japonés", "食費", 4, 2)
+fallos = fallos + mide("Food latino", "Food", 4, 4)
+
+>> "" ¶
+#09#
+? fallos == 0 {
+    >> "TODO BIEN" ¶
+}
+_ {
+    >> "FALLOS: " fallos ¶
+}
