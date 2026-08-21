@@ -52,6 +52,7 @@
         // categorías
         crear_categoría
         categorías
+        categorías_anotables
         categoría_por_clave
         // movimientos
         anotar
@@ -110,43 +111,94 @@
         }
     }
 
-    // El esquema. `IF NOT EXISTS` en todas: migrar es idempotente
-    // y arrancar sobre una base ya poblada tiene que ser un no-op.
+    // El esquema, y los renombres que lo llevan al día. `IF NOT
+    // EXISTS` en todas las creaciones y una comprobación delante de
+    // cada renombre: migrar es idempotente, arrancar sobre una base
+    // ya al día es un no-op, y arrancar sobre una escrita por una
+    // versión anterior la pone al día sin preguntar.
     //
-    // EN: The schema. Every statement is IF NOT EXISTS — migrating
-    // is idempotent and starting on a populated database is a no-op.
+    // EN: the schema, plus the renames that bring it up to date.
+    // IF NOT EXISTS on every creation and a check before every
+    // rename: migrating is idempotent, starting on an up-to-date
+    // database is a no-op, and starting on one written by an older
+    // version brings it forward without asking.
     migrar() {
         c = nombre_conexión
         bd::exec(c, "CREATE TABLE IF NOT EXISTS preferencias(
             clave TEXT PRIMARY KEY,
             valor TEXT NOT NULL)")
 
+        // No hay columna de saldo. NINGUNA cifra de dinero vive en
+        // `cuentas`: el saldo de una cuenta es la suma de sus
+        // movimientos y nada más.
+        //
+        // Había una, `saldo_inicial`, y era el único dinero del
+        // programa que ninguna línea explicaba. Se defendía diciendo
+        // que era «lo que había al abrir la cuenta», pero eso es
+        // precisamente un ASIENTO DE APERTURA: tiene fecha, tiene
+        // contrapartida —el patrimonio— y se anota como cualquier
+        // otro hecho. Guardarlo como propiedad de la cuenta lo ponía
+        // fuera del libro, y un saldo que no se puede recorrer hasta
+        // sus asientos no es un saldo contable. El mismo argumento
+        // que este módulo ya usaba contra tocar `saldo_inicial` en
+        // un ajuste, aplicado un paso más allá.
+        //
+        // EN: no balance column. NO money figure lives in `cuentas`:
+        // an account's balance is the sum of its movements, nothing
+        // else. There was one, `saldo_inicial`, and it was the only
+        // money in the program that no line explained. What it held
+        // is precisely an OPENING ENTRY — it has a date and a
+        // counterpart (equity) and is recorded like any other fact.
+        // Keeping it as a property of the account put it outside the
+        // ledger, and a balance you cannot walk back to its entries
+        // is not an accounting balance.
         bd::exec(c, "CREATE TABLE IF NOT EXISTS cuentas(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL UNIQUE,
             moneda TEXT NOT NULL,
-            saldo_inicial INTEGER NOT NULL DEFAULT 0,
             activa INTEGER NOT NULL DEFAULT 1)")
 
-        // `tipo` es "ingreso" o "gasto". Es una clave interna, no
-        // un texto de pantalla: el catálogo lo traduce.
-        // EN: `tipo` is an internal key, not screen text.
+        // Dos ejes, dos columnas. `clave` y `grupo` llevan la
+        // NATURALEZA del movimiento —"ingreso.sueldo" dentro de
+        // "ingreso.trabajo"—, que dice de qué es. `sentido` lleva
+        // su efecto sobre el saldo y solo vale "abono" o "cargo":
+        // el abono lo aumenta (crédito, haber) y el cargo lo
+        // disminuye (débito, debe).
+        //
+        // Antes había una sola columna `tipo` con "ingreso" o
+        // "gasto", que mezclaba los dos ejes — y por eso un ajuste
+        // no cabía en ella: no es ingreso ni gasto, pero abona o
+        // carga igual que todo lo demás.
+        //
+        // Las dos son claves internas, no texto de pantalla: el
+        // catálogo las traduce.
+        //
+        // EN: two axes, two columns. `clave`/`grupo` carry the
+        // NATURE (income, expense, adjustment); `sentido` carries
+        // the effect on the balance and is only "abono" (credit,
+        // raises it) or "cargo" (debit, lowers it). One `tipo`
+        // column holding "ingreso"/"gasto" conflated them, which is
+        // why an adjustment did not fit: it is neither, and still
+        // credits or debits like anything else. Both are internal
+        // keys, never screen text.
         bd::exec(c, "CREATE TABLE IF NOT EXISTS categorías(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             clave TEXT NOT NULL UNIQUE,
             grupo TEXT NOT NULL,
-            tipo TEXT NOT NULL)")
+            sentido TEXT NOT NULL)")
 
-        // `traspaso` empareja los dos asientos de un movimiento
-        // entre cuentas. Es NULL en un movimiento corriente.
-        // EN: `traspaso` pairs the two legs of a transfer; NULL for
-        // an ordinary movement.
+        // `traspaso` empareja las dos partidas de un movimiento
+        // entre cuentas —el cargo en el origen y el abono en el
+        // destino—. Es NULL en un movimiento corriente.
+        // EN: `traspaso` pairs the two legs of a transfer — the
+        // debit at the source and the credit at the destination.
+        // NULL for an ordinary movement.
         bd::exec(c, "CREATE TABLE IF NOT EXISTS movimientos(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fecha TEXT NOT NULL,
             cuenta INTEGER NOT NULL,
             categoría INTEGER,
-            monto INTEGER NOT NULL,
+            importe INTEGER NOT NULL,
             glosa TEXT NOT NULL DEFAULT '',
             traspaso INTEGER,
             FOREIGN KEY(cuenta) REFERENCES cuentas(id),
@@ -154,6 +206,132 @@
 
         bd::exec(c, "CREATE INDEX IF NOT EXISTS mov_cuenta ON movimientos(cuenta)")
         bd::exec(c, "CREATE INDEX IF NOT EXISTS mov_fecha ON movimientos(fecha)")
+
+        // ── Renombres sobre una base ya escrita ──────────────
+        //
+        // `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya
+        // existe, así que una base abierta por una versión anterior
+        // conserva los nombres viejos y NINGUNA consulta de este
+        // módulo la encuentra. Hay que renombrar las columnas, no
+        // solo el código.
+        //
+        // Cada renombre se decide PREGUNTANDO POR LA COLUMNA NUEVA
+        // y no por un número de versión guardado aparte. La
+        // pregunta que importa es «¿está ya?», y la base la
+        // responde ella misma; una tabla de versiones es un segundo
+        // sitio que puede mentir sobre en qué estado quedó esta.
+        // Preguntar es barato porque una columna que no existe es
+        // un ERROR BLANDO —`$!` responde #1— y no una caída.
+        //
+        // El orden dentro de cada bloque no es indiferente: los
+        // UPDATE van ANTES del ALTER, así que si el proceso muere a
+        // media migración la columna vieja sigue ahí, el bloque
+        // vuelve a entrar en el siguiente arranque y los UPDATE son
+        // idempotentes. Al revés quedaría una base renombrada con
+        // los valores sin traducir y nada que lo delatara.
+        //
+        // EN: renaming columns on a database already written.
+        // `CREATE TABLE IF NOT EXISTS` leaves an existing table
+        // alone, so a database opened by an older version keeps the
+        // old names and no query here finds it. Each rename is
+        // decided by ASKING FOR THE NEW COLUMN rather than by a
+        // stored version number: the database answers the question
+        // that matters itself, and a version table is a second
+        // place that can lie about this one. Asking is cheap
+        // because a missing column is a SOFT error, not a crash.
+        // Within each block the UPDATEs come BEFORE the ALTER, so a
+        // process that dies mid-migration finds the old column
+        // still there next boot and re-enters — the UPDATEs are
+        // idempotent. The other order would leave a renamed
+        // database with untranslated values and nothing to show it.
+
+        // R1: `movimientos.monto` se llama `importe`. La palabra
+        // del ámbito es importe; monto era el término suelto.
+        // EN: R1 — `movimientos.monto` is now `importe`.
+        r1 = bd::query(c, "SELECT importe FROM movimientos LIMIT 1")
+        ? r1$! {
+            bd::exec(c, "ALTER TABLE movimientos RENAME COLUMN monto TO importe")
+        }
+
+        // R2: `categorías.tipo` era un solo eje con dos: guardaba
+        // "ingreso"/"gasto", que es la NATURALEZA, en la columna
+        // que decide el SENTIDO. Pasa a `categorías.sentido` con
+        // "abono"/"cargo", y los ajustes —que no son ingreso ni
+        // gasto— dejan de colgar de ellos y toman grupo propio.
+        // EN: R2 — `categorías.tipo` held the NATURE in the column
+        // that decides the SENTIDO. It becomes `sentido` with
+        // "abono"/"cargo", and adjustments — neither income nor
+        // expense — leave that hierarchy for a group of their own.
+        r2 = bd::query(c, "SELECT sentido FROM categorías LIMIT 1")
+        ? r2$! {
+            bd::exec(c, "UPDATE categorías SET clave = 'ajuste.abono', grupo = 'ajuste'
+                         WHERE clave = 'ingreso.ajuste'")
+            bd::exec(c, "UPDATE categorías SET clave = 'ajuste.cargo', grupo = 'ajuste'
+                         WHERE clave = 'gasto.ajuste'")
+            bd::exec(c, "UPDATE categorías SET tipo = 'abono' WHERE tipo = 'ingreso'")
+            bd::exec(c, "UPDATE categorías SET tipo = 'cargo' WHERE tipo = 'gasto'")
+            bd::exec(c, "ALTER TABLE categorías RENAME COLUMN tipo TO sentido")
+        }
+
+        // R3: `cuentas.saldo_inicial` era dinero fuera del libro.
+        // Cada cuenta con saldo distinto de cero recibe su ASIENTO
+        // DE APERTURA y la columna desaparece.
+        //
+        // Esta se decide al revés que las dos de arriba, porque el
+        // cambio es una BAJA y no un renombre: se pregunta por la
+        // columna VIEJA, y que responda significa que hay trabajo.
+        //
+        // La fecha del asiento es la del movimiento más antiguo de
+        // esa cuenta, no hoy. Un saldo de apertura fechado después
+        // de los movimientos que precede sale ordenado el último y
+        // deja fuera de cualquier resumen por periodo el dinero con
+        // el que la cuenta empezó. Si no hay movimientos, hoy es lo
+        // único que se sabe.
+        //
+        // Los INSERT llevan `NOT EXISTS`, así que volver a entrar no
+        // duplica nada: es lo que permite que el ALTER vaya al final
+        // sin que un corte a media migración cobre dos veces la
+        // apertura.
+        //
+        // EN: R3 — `cuentas.saldo_inicial` was money outside the
+        // ledger. Every account with a non-zero balance gets its
+        // OPENING ENTRY and the column goes. Decided the other way
+        // round from the two above because this is a REMOVAL, not a
+        // rename: ask for the OLD column, and an answer means there
+        // is work. The entry is dated by the account`s earliest
+        // movement, not today — an opening dated after what it
+        // precedes sorts last and drops the starting money out of
+        // every period summary. The INSERTs carry `NOT EXISTS`, so
+        // re-entering duplicates nothing.
+        // Los paréntesis no son adorno: `!r3$!` se lee `(!r3)$!` y
+        // pregunta si la NEGACIÓN es un error, que es otra pregunta
+        // y además revienta. `!(r3$!)` es «la consulta NO falló», o
+        // sea «la columna vieja sigue ahí».
+        // EN: the parentheses are load-bearing: `!r3$!` parses as
+        // `(!r3)$!`, a different question that also blows up.
+        r3 = bd::query(c, "SELECT saldo_inicial FROM cuentas LIMIT 1")
+        ? !(r3$!) {
+            fecha_hoy = hoy()
+            bd::exec(c, "INSERT INTO categorías(clave, grupo, sentido) VALUES
+                         ('apertura.abono', 'apertura', 'abono'),
+                         ('apertura.cargo', 'apertura', 'cargo')
+                         ON CONFLICT(clave) DO NOTHING")
+            sql_ap = "INSERT INTO movimientos(fecha, cuenta, categoría, importe, glosa, traspaso)
+                      SELECT COALESCE((SELECT MIN(m2.fecha) FROM movimientos m2
+                                       WHERE m2.cuenta = a.id), ?),
+                             a.id,
+                             (SELECT k.id FROM categorías k WHERE k.clave = ?),
+                             a.saldo_inicial, '', NULL
+                      FROM cuentas a
+                      WHERE a.saldo_inicial <> 0
+                        AND (a.saldo_inicial > 0) = ?
+                        AND NOT EXISTS (SELECT 1 FROM movimientos m
+                                        JOIN categorías k2 ON k2.id = m.categoría
+                                        WHERE m.cuenta = a.id AND k2.grupo = 'apertura')"
+            bd::exec(c, sql_ap, (fecha_hoy, "apertura.abono", 1))
+            bd::exec(c, sql_ap, (fecha_hoy, "apertura.cargo", 0))
+            bd::exec(c, "ALTER TABLE cuentas DROP COLUMN saldo_inicial")
+        }
         <~ #1
     }
 
@@ -205,10 +383,71 @@
 
     // ── Cuentas ──────────────────────────────────────────────
 
-    crear_cuenta(nombre, moneda, saldo_inicial) {
+    // Abrir una cuenta con un saldo es abrirla Y anotar su asiento
+    // de apertura, en una sola transacción.
+    //
+    // Las dos cosas o ninguna, por lo mismo que un traspaso: una
+    // cuenta con saldo declarado y sin la línea que lo dice es
+    // media apertura, y media apertura no es un estado que la base
+    // pueda tener. La segunda sentencia alcanza la cuenta por su
+    // NOMBRE —que es único— en vez de por el id que la primera
+    // acaba de generar, que es lo que permite meter las dos en un
+    // `tx` sin leer nada entre medias.
+    //
+    // La glosa va vacía a propósito. Lo que explica la línea es su
+    // CATEGORÍA —«Apertura»—, y una categoría se traduce al idioma
+    // activo mientras que una glosa se queda congelada en el idioma
+    // en que se escribió. Es la misma división que separa la i18n
+    // de interfaz de la de datos en todo el resto del programa.
+    //
+    // Un saldo de apertura NEGATIVO es legítimo: una tarjeta de
+    // crédito o una cuenta en descubierto se abren debiendo. Por eso
+    // hay dos categorías y no una.
+    //
+    // EN: opening an account with a balance is opening it AND
+    // recording its opening entry, in one transaction — both or
+    // neither, for the same reason as a transfer. The second
+    // statement reaches the account by its unique NAME rather than
+    // by the id the first just generated, which is what lets both
+    // go into one `tx` with no read in between. The note is
+    // deliberately empty: what explains the line is its CATEGORY,
+    // and a category follows the active locale while a note freezes
+    // the one it was written in. A NEGATIVE opening balance is
+    // legitimate — a credit card opens owing — hence two categories.
+    crear_cuenta(nombre, moneda, apertura, fecha) {
         c = nombre_conexión
-        r = bd::exec(c, "INSERT INTO cuentas(nombre, moneda, saldo_inicial, activa)
-                         VALUES(?, ?, ?, 1)", (nombre, moneda, saldo_inicial))
+        sql_cuenta = "INSERT INTO cuentas(nombre, moneda, activa) VALUES(?, ?, 1)"
+
+        ? apertura == 0 {
+            r = bd::exec(c, sql_cuenta, (nombre, moneda))
+            ? r$! { <~ (#0, r) }
+            f = bd::query_one(c, "SELECT id FROM cuentas WHERE nombre = ?", (nombre,))
+            <~ (#1, f.id)
+        }
+
+        clave = "apertura.abono"
+        sentido = "abono"
+        ? apertura < 0 {
+            clave = "apertura.cargo"
+            sentido = "cargo"
+        }
+        (hay, cat_id) = _asegurar_categoría(clave, "apertura", sentido)
+        ? !hay { <~ (#0, cat_id) }
+
+        // `#[…]` y no `[…]`: las dos sentencias del lote llevan un
+        // número distinto de parámetros —dos y cuatro—, así que sus
+        // tuplas no son del mismo tipo y un arreglo homogéneo las
+        // rechaza. La mezcla es deliberada y se declara
+        // (COLLECTIONS.md).
+        // EN: `#[…]`, not `[…]`: the two statements take a different
+        // number of parameters, so their tuples differ in type and a
+        // homogeneous array refuses them. The mix is deliberate.
+        r = bd::tx(c, #[
+            (sql_cuenta, (nombre, moneda)),
+            ("INSERT INTO movimientos(fecha, cuenta, categoría, importe, glosa, traspaso)
+              VALUES(?, (SELECT id FROM cuentas WHERE nombre = ?), ?, ?, '', NULL)",
+             (fecha, nombre, cat_id, apertura))
+        ])
         ? r$! { <~ (#0, r) }
         f = bd::query_one(c, "SELECT id FROM cuentas WHERE nombre = ?", (nombre,))
         <~ (#1, f.id)
@@ -216,63 +455,116 @@
 
     cuentas() {
         <~ bd::query(nombre_conexión,
-            "SELECT id, nombre, moneda, saldo_inicial, activa
+            "SELECT id, nombre, moneda, activa
              FROM cuentas ORDER BY id")
     }
 
     cuenta(id) {
         <~ bd::query_one(nombre_conexión,
-            "SELECT id, nombre, moneda, saldo_inicial, activa
+            "SELECT id, nombre, moneda, activa
              FROM cuentas WHERE id = ?", (id,))
     }
 
     cuenta_por_nombre(nombre) {
         <~ bd::query_one(nombre_conexión,
-            "SELECT id, nombre, moneda, saldo_inicial, activa
+            "SELECT id, nombre, moneda, activa
              FROM cuentas WHERE nombre = ?", (nombre,))
     }
 
     // ── Categorías ───────────────────────────────────────────
 
-    crear_categoría(clave, grupo, tipo) {
+    // La categoría que hace falta, creándola si no está. Lo usan la
+    // apertura de una cuenta y el ajuste, que son los dos sitios
+    // donde el programa —y no el usuario— decide una categoría.
+    // Devuelve (hay, id) o (#0, error).
+    // EN: the category needed, created if absent. Used by account
+    // opening and by adjustment, the two places where the program
+    // rather than the user picks a category.
+    _asegurar_categoría(clave, grupo, sentido) {
+        cat = categoría_por_clave(clave)
+        ? !es_nulo(cat) { <~ (#1, cat.id) }
+        (hecha, nid) = crear_categoría(clave, grupo, sentido)
+        ? !hecha { <~ (#0, nid) }
+        <~ (#1, nid)
+    }
+
+    crear_categoría(clave, grupo, sentido) {
         c = nombre_conexión
-        r = bd::exec(c, "INSERT INTO categorías(clave, grupo, tipo) VALUES(?, ?, ?)",
-                     (clave, grupo, tipo))
+        r = bd::exec(c, "INSERT INTO categorías(clave, grupo, sentido) VALUES(?, ?, ?)",
+                     (clave, grupo, sentido))
         ? r$! { <~ (#0, r) }
         f = bd::query_one(c, "SELECT id FROM categorías WHERE clave = ?", (clave,))
         <~ (#1, f.id)
     }
 
-    categorías(tipo) {
+    // `sentido` filtra por "abono" o "cargo"; "" las trae todas.
+    // EN: `sentido` filters by "abono" or "cargo"; "" brings all.
+    categorías(sentido) {
         c = nombre_conexión
-        ? tipo == "" {
-            <~ bd::query(c, "SELECT id, clave, grupo, tipo FROM categorías ORDER BY grupo, clave")
+        ? sentido == "" {
+            <~ bd::query(c, "SELECT id, clave, grupo, sentido FROM categorías ORDER BY grupo, clave")
         }
-        <~ bd::query(c, "SELECT id, clave, grupo, tipo FROM categorías
-                         WHERE tipo = ? ORDER BY grupo, clave", (tipo,))
+        <~ bd::query(c, "SELECT id, clave, grupo, sentido FROM categorías
+                         WHERE sentido = ? ORDER BY grupo, clave", (sentido,))
+    }
+
+    // Las categorías que se le pueden ofrecer a alguien que está
+    // anotando un movimiento.
+    //
+    // Es `categorías` MENOS el grupo `apertura`, y la regla que las
+    // separa es exacta: una categoría que el resumen excluye no
+    // puede aparecer en el selector. Ofrecerla sería ofrecer una
+    // categoría INVISIBLE — el gasto se guardaría, el saldo
+    // cambiaría y la línea no saldría en ningún resumen, sin que
+    // nada lo dijera. Un almuerzo archivado bajo «Apertura (abono)»
+    // desaparece del único sitio donde se mira en qué se va el
+    // dinero.
+    //
+    // Los ajustes SÍ están: un ajuste cuenta en el resumen como
+    // cualquier movimiento, y archivar algo bajo «Ajuste (cargo)»
+    // es una respuesta legítima a «no sé en qué categoría va».
+    //
+    // La apertura no se elige porque no se anota: la escribe el
+    // programa al abrir la cuenta, como las partidas de un traspaso,
+    // que tampoco llevan categoría.
+    //
+    // EN: the categories that may be offered to someone recording a
+    // movement — `categorías` MINUS the `apertura` group. The rule
+    // is exact: a category the summary excludes must not appear in
+    // the picker, or it is an INVISIBLE category — the expense would
+    // be stored, the balance would move, and the line would show up
+    // in no summary with nothing to say so. Adjustments ARE offered:
+    // they count in the summary. An opening is not chosen because it
+    // is not recorded — the program writes it when the account is
+    // opened, like a transfer's legs, which carry no category
+    // either.
+    categorías_anotables() {
+        <~ bd::query(nombre_conexión,
+            "SELECT id, clave, grupo, sentido FROM categorías
+             WHERE grupo <> 'apertura' ORDER BY grupo, clave")
     }
 
     categoría_por_clave(clave) {
         <~ bd::query_one(nombre_conexión,
-            "SELECT id, clave, grupo, tipo FROM categorías WHERE clave = ?", (clave,))
+            "SELECT id, clave, grupo, sentido FROM categorías WHERE clave = ?", (clave,))
     }
 
     // ── Movimientos ──────────────────────────────────────────
 
-    // El signo del monto es el que distingue ingreso de gasto: un
-    // gasto es negativo. No hay columna de tipo en `movimientos`
-    // porque el tipo ya está en el signo y en la categoría, y dos
-    // sitios que dicen lo mismo acaban diciendo cosas distintas.
+    // El signo del importe ES el sentido: positivo abona, negativo
+    // carga. No hay columna de sentido en `movimientos` porque ya
+    // está en el signo y en la categoría, y dos sitios que dicen lo
+    // mismo acaban diciendo cosas distintas.
     //
-    // EN: The sign of the amount is what tells income from expense —
-    // an expense is negative. No type column: the type is already in
-    // the sign and in the category, and two places that state the
-    // same thing end up disagreeing.
-    anotar(fecha, cuenta_id, categoría_id, monto, glosa) {
+    // EN: the sign of the amount IS the sentido — positive credits,
+    // negative debits. No sentido column here: it is already in the
+    // sign and in the category, and two places that state the same
+    // thing end up disagreeing.
+    anotar(fecha, cuenta_id, categoría_id, importe, glosa) {
         r = bd::exec(nombre_conexión,
-            "INSERT INTO movimientos(fecha, cuenta, categoría, monto, glosa, traspaso)
+            "INSERT INTO movimientos(fecha, cuenta, categoría, importe, glosa, traspaso)
              VALUES(?, ?, ?, ?, ?, NULL)",
-            (fecha, cuenta_id, categoría_id, monto, glosa))
+            (fecha, cuenta_id, categoría_id, importe, glosa))
         ? r$! { <~ (#0, r) }
         <~ (#1, "")
     }
@@ -280,7 +572,7 @@
     movimientos(cuenta_id, límite) {
         c = nombre_conexión
         ? cuenta_id <= 0 {
-            <~ bd::query(c, "SELECT m.id, m.fecha, m.cuenta, m.monto, m.glosa, m.traspaso,
+            <~ bd::query(c, "SELECT m.id, m.fecha, m.cuenta, m.importe, m.glosa, m.traspaso,
                                     c.clave AS categoría, a.nombre AS cuenta_nombre,
                                     a.moneda AS moneda
                              FROM movimientos m
@@ -288,7 +580,7 @@
                              LEFT JOIN categorías c ON c.id = m.categoría
                              ORDER BY m.fecha DESC, m.id DESC LIMIT ?", (límite,))
         }
-        <~ bd::query(c, "SELECT m.id, m.fecha, m.cuenta, m.monto, m.glosa, m.traspaso,
+        <~ bd::query(c, "SELECT m.id, m.fecha, m.cuenta, m.importe, m.glosa, m.traspaso,
                                 c.clave AS categoría, a.nombre AS cuenta_nombre,
                                 a.moneda AS moneda
                          FROM movimientos m
@@ -300,7 +592,7 @@
 
     movimiento(id) {
         <~ bd::query_one(nombre_conexión,
-            "SELECT m.id, m.fecha, m.cuenta, m.monto, m.glosa, m.traspaso,
+            "SELECT m.id, m.fecha, m.cuenta, m.importe, m.glosa, m.traspaso,
                     c.clave AS categoría, a.nombre AS cuenta_nombre, a.moneda AS moneda
              FROM movimientos m
              JOIN cuentas a ON a.id = m.cuenta
@@ -318,8 +610,9 @@
     // necesitaría lo contrario, y entonces esta función tendría que
     // escribir el asiento inverso en lugar de un UPDATE.
     //
-    // Los dos asientos de un traspaso NO se editan por aquí: cada
-    // uno es la mitad de algo, y cambiar una mitad deja la otra
+    // Las dos PARTIDAS de un traspaso NO se editan por aquí: cada
+    // una es la mitad de un solo asiento —el cargo en el origen y
+    // el abono en el destino—, y cambiar una mitad deja la otra
     // mintiendo. Se rechaza en vez de partir el par.
     //
     // EN: correcting an entry already written — in place, not by a
@@ -328,19 +621,19 @@
     // meant to be audited would need the opposite. The two legs of a
     // transfer are NOT editable here: changing one half leaves the
     // other lying, so it is refused rather than split.
-    actualizar(id, fecha, categoría_id, monto, glosa) {
+    actualizar(id, fecha, categoría_id, importe, glosa) {
         c = nombre_conexión
         actual = movimiento(id)
         ? es_nulo(actual) { <~ (#0, "no_existe") }
         ? !es_nulo(actual.traspaso) { <~ (#0, "traspaso") }
         r = bd::exec(c,
-            "UPDATE movimientos SET fecha = ?, categoría = ?, monto = ?, glosa = ?
-             WHERE id = ?", (fecha, categoría_id, monto, glosa, id))
+            "UPDATE movimientos SET fecha = ?, categoría = ?, importe = ?, glosa = ?
+             WHERE id = ?", (fecha, categoría_id, importe, glosa, id))
         ? r$! { <~ (#0, r) }
         <~ (#1, "")
     }
 
-    // Borrar. Un traspaso se borra ENTERO — sus dos asientos — o no
+    // Borrar. Un traspaso se borra ENTERO — sus dos partidas — o no
     // se borra: media transferencia no es un estado que la base
     // pueda tener, y eso vale igual al deshacerla que al hacerla.
     // EN: deleting. A transfer goes WHOLE — both legs — or not at
@@ -360,51 +653,58 @@
         <~ (#1, "")
     }
 
-    // Abonar o descontar saldo.
+    // Abonar o cargar.
     //
-    // Es un movimiento, no un cambio del saldo. La diferencia
-    // importa: `saldo_inicial` es lo que había cuando se abrió la
-    // cuenta y no vuelve a moverse nunca, así que el saldo de hoy
-    // siempre es esa cifra más la suma de lo anotado. Si un ajuste
-    // tocara `saldo_inicial`, el saldo cambiaría sin que ninguna
-    // línea lo explicara — y un libro de cuentas donde el saldo
-    // cambia sin dejar rastro no es un libro de cuentas.
+    // Abono y cargo son el par, y no «abonar y descontar»:
+    // descontar es rebajar un precio o deducir de una cantidad, y
+    // no es lo contrario de abonar en ninguna contabilidad. Lo
+    // contrario de abonar —crédito, haber— es cargar —débito,
+    // debe—, y es lo que dice cualquier estado de cuenta.
     //
-    // El signo lo trae el llamante: positivo abona, negativo
-    // descuenta.
+    // Es un movimiento, no un cambio del saldo. La diferencia era el
+    // argumento contra escribir en `saldo_inicial`, y ese argumento
+    // acabó llevándose la columna entera: si un saldo que cambia sin
+    // dejar rastro no es un libro de cuentas, un saldo que EMPIEZA
+    // sin dejar rastro tampoco. Hoy no hay dónde escribir un saldo
+    // aunque se quisiera —el saldo es la suma de los movimientos— y
+    // un ajuste es una línea más, con su fecha y su glosa.
+    //
+    // El signo lo trae el llamante: positivo abona, negativo carga.
     //
     // EN: crediting or debiting is a MOVEMENT, not a change of
-    // balance. `saldo_inicial` is what was there when the account
-    // was opened and never moves again, so today's balance is
-    // always that figure plus the sum of what was recorded. If an
-    // adjustment touched `saldo_inicial` the balance would change
-    // with no line explaining it — and a ledger whose balance moves
-    // without a trace is not a ledger. Sign comes from the caller.
-    ajustar(fecha, cuenta_id, monto, glosa) {
+    // balance. That difference was the argument against writing into
+    // `saldo_inicial`, and the argument ended up taking the column
+    // with it: if a balance that changes without a trace is not a
+    // ledger, neither is one that STARTS without a trace. There is
+    // now nowhere to write a balance even if one wanted to — the
+    // balance is the sum of the movements. Sign comes from the
+    // caller.
+    //
+    // La categoría de un ajuste no cuelga de ingresos ni de gastos:
+    // un ajuste no es ninguna de las dos cosas. Tiene grupo propio
+    // —"ajuste"— y solo se distingue por su sentido.
+    // EN: an adjustment's category hangs off neither income nor
+    // expense — it is neither. Own group, told apart by sentido.
+    ajustar(fecha, cuenta_id, importe, glosa) {
         c = nombre_conexión
-        clave = "ingreso.ajuste"
-        tipo = "ingreso"
-        ? monto < 0 {
-            clave = "gasto.ajuste"
-            tipo = "gasto"
+        clave = "ajuste.abono"
+        sentido = "abono"
+        ? importe < 0 {
+            clave = "ajuste.cargo"
+            sentido = "cargo"
         }
-        cat = categoría_por_clave(clave)
-        cat_id = 0
-        ? es_nulo(cat) {
-            (hecha, nid) = crear_categoría(clave, tipo ".otros", tipo)
-            ? !hecha { <~ (#0, nid) }
-            cat_id = nid
-        }
-        _ { cat_id = cat.id }
-        <~ anotar(fecha, cuenta_id, cat_id, monto, glosa)
+        (hay, cat_id) = _asegurar_categoría(clave, "ajuste", sentido)
+        ? !hay { <~ (#0, cat_id) }
+        <~ anotar(fecha, cuenta_id, cat_id, importe, glosa)
     }
 
-    // Un traspaso son DOS asientos que viven o mueren juntos. Es la
+    // Un traspaso es UN asiento de DOS partidas —cargo en el
+    // origen, abono en el destino— que viven o mueren juntas. Es la
     // razón de que este módulo use `tx` y no dos `exec` seguidos:
     // media transferencia no es un estado que la base pueda tener.
     //
     // Las monedas distintas no se convierten con una tasa
-    // inventada — se exige el monto de destino. Si el usuario mueve
+    // inventada — se exige el importe de destino. Si el usuario mueve
     // 100 USD a una cuenta en pesos, el programa no sabe a cuánto,
     // y adivinarlo sería peor que preguntarlo.
     //
@@ -412,18 +712,18 @@
     // hence `tx` rather than two `exec`s: half a transfer is not a
     // state the database may hold. Across currencies the destination
     // amount is required, never derived from an invented rate.
-    traspasar(fecha, origen_id, destino_id, monto_origen, monto_destino, glosa) {
+    traspasar(fecha, origen_id, destino_id, importe_origen, importe_destino, glosa) {
         c = nombre_conexión
         ? origen_id == destino_id { <~ (#0, "misma_cuenta") }
 
         f = bd::query_one(c, "SELECT COALESCE(MAX(traspaso), 0) + 1 AS sig FROM movimientos")
         marca = f.sig
 
-        sql = "INSERT INTO movimientos(fecha, cuenta, categoría, monto, glosa, traspaso)
+        sql = "INSERT INTO movimientos(fecha, cuenta, categoría, importe, glosa, traspaso)
                VALUES(?, ?, NULL, ?, ?, ?)"
         lote = [
-            (sql, (fecha, origen_id, 0 - monto_origen, glosa, marca)),
-            (sql, (fecha, destino_id, monto_destino, glosa, marca))
+            (sql, (fecha, origen_id, 0 - importe_origen, glosa, marca)),
+            (sql, (fecha, destino_id, importe_destino, glosa, marca))
         ]
         r = bd::tx(c, lote)
         ? r$! { <~ (#0, r) }
@@ -432,13 +732,23 @@
 
     // ── Saldos ───────────────────────────────────────────────
 
+    // El saldo es la suma de los movimientos. Punto.
+    //
+    // Antes era `saldo_inicial + SUM(...)`, dos fuentes para una
+    // cifra; ahora la apertura es uno de los sumandos como
+    // cualquier otro. Sin `GROUP BY` y sin `JOIN`: `SUM` sobre cero
+    // filas devuelve una fila con NULL, así que `COALESCE` da 0 y
+    // una cuenta recién abierta sin apertura vale cero sin ningún
+    // caso especial.
+    //
+    // EN: the balance is the sum of the movements. Full stop. It
+    // was `saldo_inicial + SUM(...)`, two sources for one figure;
+    // the opening is now one of the addends. No GROUP BY, no JOIN:
+    // SUM over zero rows returns one NULL row, so COALESCE gives 0.
     saldo(cuenta_id) {
         f = bd::query_one(nombre_conexión,
-            "SELECT a.saldo_inicial + COALESCE(SUM(m.monto), 0) AS saldo
-             FROM cuentas a
-             LEFT JOIN movimientos m ON m.cuenta = a.id
-             WHERE a.id = ?
-             GROUP BY a.id", (cuenta_id,))
+            "SELECT COALESCE(SUM(importe), 0) AS saldo
+             FROM movimientos WHERE cuenta = ?", (cuenta_id,))
         <~ f.saldo
     }
 
@@ -451,9 +761,23 @@
     // −100000 CLP + 10500 USD = −89500, un número que no es dinero
     // de nada. Un total solo significa algo dentro de una moneda.
     //
-    // Y excluye los traspasos (`m.traspaso IS NULL`): mover dinero
-    // de una cuenta propia a otra no es un gasto ni un ingreso, y
-    // contarlo como tal infla las dos columnas a la vez.
+    // Y excluye DOS cosas que no son ni gasto ni ingreso:
+    //
+    // - Los traspasos (`m.traspaso IS NULL`). Mover dinero de una
+    //   cuenta propia a otra no es ninguna de las dos, y contarlo
+    //   como tal infla las dos columnas a la vez.
+    //
+    // - Las aperturas (grupo `apertura`). La contrapartida de un
+    //   asiento de apertura es el PATRIMONIO, no una cuenta de
+    //   resultado: abrir una cuenta con veinte millones no es haber
+    //   ganado veinte millones ese mes. Sin esto, el saldo con el
+    //   que alguien empieza aparecería como el ingreso más grande de
+    //   su vida y el resumen dejaría de servir para lo único que
+    //   sirve, que es ver en qué se va el dinero.
+    //
+    // Se filtra por el GRUPO y no por la clave: el grupo es la
+    // naturaleza, y es lo que decide si algo pertenece a una cuenta
+    // de resultado.
     //
     // EN: Aggregate by category over a date range, returning the
     // KEY, not a name. Groups BY CURRENCY too — the first version
@@ -466,28 +790,30 @@
         ? cuenta_id <= 0 {
             <~ bd::query(c, "SELECT COALESCE(k.clave, '') AS categoría,
                                     COALESCE(k.grupo, '') AS grupo,
-                                    COALESCE(k.tipo, '') AS tipo,
+                                    COALESCE(k.sentido, '') AS sentido,
                                     a.moneda AS moneda,
-                                    SUM(m.monto) AS total, COUNT(*) AS cuantos
+                                    SUM(m.importe) AS total, COUNT(*) AS cuantos
                              FROM movimientos m
                              JOIN cuentas a ON a.id = m.cuenta
                              LEFT JOIN categorías k ON k.id = m.categoría
                              WHERE m.fecha >= ? AND m.fecha <= ?
                                AND m.traspaso IS NULL
-                             GROUP BY k.clave, k.grupo, k.tipo, a.moneda
+                               AND COALESCE(k.grupo, '') <> 'apertura'
+                             GROUP BY k.clave, k.grupo, k.sentido, a.moneda
                              ORDER BY a.moneda, total", (desde, hasta))
         }
         <~ bd::query(c, "SELECT COALESCE(k.clave, '') AS categoría,
                                 COALESCE(k.grupo, '') AS grupo,
-                                COALESCE(k.tipo, '') AS tipo,
+                                COALESCE(k.sentido, '') AS sentido,
                                 a.moneda AS moneda,
-                                SUM(m.monto) AS total, COUNT(*) AS cuantos
+                                SUM(m.importe) AS total, COUNT(*) AS cuantos
                          FROM movimientos m
                          JOIN cuentas a ON a.id = m.cuenta
                          LEFT JOIN categorías k ON k.id = m.categoría
                          WHERE m.cuenta = ? AND m.fecha >= ? AND m.fecha <= ?
                            AND m.traspaso IS NULL
-                         GROUP BY k.clave, k.grupo, k.tipo, a.moneda
+                           AND COALESCE(k.grupo, '') <> 'apertura'
+                         GROUP BY k.clave, k.grupo, k.sentido, a.moneda
                          ORDER BY a.moneda, total", (cuenta_id, desde, hasta))
     }
 }

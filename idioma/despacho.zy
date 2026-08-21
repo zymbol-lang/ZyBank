@@ -80,12 +80,12 @@
     }
 
     // El catálogo se construye una vez por idioma y se guarda. Sin
-    // esto cada `texto()` reconstruiría un diccionario de 52 claves
+    // esto cada `texto()` reconstruiría un diccionario de 70 claves
     // — barato de escribir y caro de ejecutar, que es la clase de
     // coste que no aparece hasta que la tabla tiene cien filas.
     //
     // EN: the catalogue is built once per locale and kept. Without
-    // this every `texto()` would rebuild a 52-key dictionary.
+    // this every `texto()` would rebuild a 70-key dictionary.
     _asegurar() {
         ? cargado <> idioma_actual {
             catálogo_actual = mp::desde_pares(_pares_de(idioma_actual))

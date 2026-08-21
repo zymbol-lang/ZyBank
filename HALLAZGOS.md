@@ -48,17 +48,40 @@ tesis del método en pequeño: la superficie nueva no encontró un fallo *nuevo*
 encontró uno viejo que nadie había tenido motivo de pisar. Las otras cuatro
 salen de que **nadie había escrito antes un campo de entrada en Zymbol**: el
 teclado pierde el modificador Control y colapsa dos teclas en una
-([BUG-ZYB-006](#bug-zyb-006)), no hay forma de escribir el carácter que la tecla
-de borrar produce ([GAP-ZYB-010](#gap-zyb-010)), las flechas no se pueden usar
-sin perder ESC ([GAP-ZYB-011](#gap-zyb-011)), y el tree-walker repinta un estado
-que ya se había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
+([BUG-ZYB-006](#bug-zyb-006)) y el tree-walker repinta un estado que ya se
+había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
 
-Y una sexta, que es la que mejor resume para qué sirve escribir aplicaciones en
-lugar de casos de prueba: el lenguaje **escribe** cifras en 69 escrituras y no
-sabe **leer** ninguna ([GAP-ZYB-012](#gap-zyb-012)). Ningún corpus lo iba a
-descubrir, porque un caso de prueba no tiene teclado. Hizo falta que la
-aplicación imprimiera «$१२,३४५.०७» y luego le rechazara al usuario el «१» que
-tecleaba.
+**Tres** hallazgos de esta lista resultaron ser **falsos**, y merecen decirse
+aquí antes que en su ficha. [GAP-ZYB-010](#gap-zyb-010) y
+[GAP-ZYB-012](#gap-zyb-012) sostenían que no se puede ir de un carácter a su
+número ni al revés. Sí se puede — `0d27` es ESC y `##!'७'` es 2413 — y los dos
+salieron del mismo experimento incompleto: se probaron `###` y `#|…|`, y no
+`##!`, que es el operador de esa pregunta. El coste fue trece tablas de glifos
+escritas a mano y dos procesos del intérprete de órdenes por tecla pulsada, todo
+ello para rodear algo que el lenguaje hacía desde v0.0.8.
+
+[GAP-ZYB-011](#gap-zyb-011) es el tercero y el más caro de los tres, porque es
+el único que llegó a los dedos de alguien: decía que las flechas no se pueden
+usar sin perder ESC, razonando sobre los tres bytes que manda el terminal en
+vez de probar lo que `<<|` entrega — que es **un** carácter, `'↓'`, con el ESC
+suelto todavía distinguible. La aplicación ignoraba la flecha abajo, y una
+lista que no responde a `↓` no parece una lista con otro convenio: parece una
+lista rota. Lo destapó un usuario, no una suite, y no es casualidad — la
+secuencia del arnés de pty entraba con `⏎` en la primera cuenta, así que la
+navegación por la lista no se ejercitaba nunca. El hueco de cobertura y el
+hallazgo falso se sostenían el uno al otro: nadie probaba las flechas porque
+una ficha decía que eran imposibles, y la ficha seguía en pie porque nadie las
+probaba.
+
+La lección que se sacó de ellos sigue en pie y ahora se aplica a sí misma: una
+aplicación descubre lo que un corpus no, **y también se equivoca de una manera
+que un corpus no** — dando por ausente una capacidad tras probar el operador
+equivocado. Un hallazgo contra el lenguaje no vale más que la prueba que lo
+sostiene, y la prueba tiene que agotar los operadores que podrían responder,
+no el primero que se pruebe. La que sí resistió es la que llevó hasta ahí: la
+aplicación imprimía «$१२,३४५.०७» y le rechazaba al usuario el «१» que tecleaba,
+y ningún caso de prueba lo iba a descubrir, porque un caso de prueba no tiene
+teclado.
 
 ---
 
@@ -83,9 +106,9 @@ tecleaba.
 | [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | la yuxtaposición no se admite en argumentos de llamada | abierto |
 | [GAP-ZYB-008](#gap-zyb-008) | GAP | conversión a texto | un agregado se imprime con `>>` pero no se puede llevar a una cadena | abierto |
 | [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es | abierto |
-| [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | no hay forma de escribir un carácter de control: hay que salir al intérprete de órdenes | abierto |
-| [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | las flechas del teclado no se pueden usar sin perder la tecla ESC | abierto |
-| [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | no hay forma de preguntar si un carácter es un **dígito**, ni cuánto vale — el lenguaje escribe 69 escrituras y no sabe leer ninguna | abierto |
+| [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | ~~no hay forma de escribir un carácter de control~~ — sí la hay: `0d27` es ESC, y `##!` da el punto de código | **retirado · era falso** |
+| [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | ~~las flechas del teclado no se pueden usar sin perder la tecla ESC~~ — `<<|` las entrega decodificadas y ESC sigue llegando solo | **retirado · era falso** |
+| [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `##!` sobre un `Char` da su punto de código; lo que falta es el predicado `es_dígito`, no la lectura | **muy reducido** |
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico | abierto |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | abierto |
@@ -428,9 +451,10 @@ Dos pérdidas distintas, y las dos son de información:
    trata las dos como «borrar»). En un formulario donde el tabulador saltase de
    campo sería imposible: cada salto borraría un carácter.
 
-Y el valor en que colapsan, `0x00`, es el único que además **no se puede
-escribir** en Zymbol ([GAP-ZYB-010](#gap-zyb-010)), así que ni siquiera se puede
-comparar contra él sin salir del lenguaje.
+El valor en que colapsan, `0x00`, sí se puede escribir: es `0d0`, y
+`pantalla/teclas.zy` compara contra él directamente. Lo que no se puede es
+distinguir cuál de las dos teclas lo produjo, que es este hallazgo y no
+[~~GAP-ZYB-010~~](#gap-zyb-010).
 
 **Lo esperable** sería que `<<|` entregase la tecla sin traducir, y que una
 aplicación pudiera preguntar por el modificador. Mientras tanto, cualquier TUI
@@ -830,117 +854,173 @@ directamente, dado que `$!` ya existe para la pregunta hermana.
 
 ## GAP-ZYB-010
 
-**No hay forma de escribir un carácter de control. Un campo de entrada necesita tres teclas y el lenguaje sabe escribir una.**
+> **RETIRADO — era falso.** Se conserva porque un hallazgo borrado no se
+> puede aprender de él, y porque el error de método que lo produjo es el
+> mismo que produjo [GAP-ZYB-012](#gap-zyb-012).
 
-Un campo de texto en modo crudo necesita ENTER para confirmar, RETROCESO para
-corregir y ESC para cancelar. `'\n'` se escribe; las otras dos, no.
+**Lo que decía:** que no hay forma de escribir un carácter de control, y que
+fabricar ESC y RETROCESO obliga a salir al intérprete de órdenes.
 
-Las secuencias de escape son `\n \t \r \" \\ \{ \}` y ninguna más
-(`GUIDE.md` § "String Literals"). No hay `\e`, ni `\xNN`, ni `\uXXXX` — el
-documento dice explícitamente que `\uXXXX` no existe. En un literal de carácter
-una secuencia desconocida es un **error de análisis**, así que `'\e'` no compila.
-
-Tampoco hay salida por el número, que sería la vía natural:
+**Lo que pasa de verdad:** un carácter se escribe también por su código, y eso
+lleva en el lenguaje desde siempre. `GUIDE.md` § "Literals" lo dice en la misma
+frase que los literales entre comillas simples:
 
 ```zymbol
-c = 'a'
->> ###c ¶      // Runtime error: ### requires a numeric value, got Char
->> #|c| ¶      // "a" — devuelve el carácter como texto, no su punto de código
+0d27 == 0x1b       // #1 — ESC, en decimal y en hexadecimal
+0d65 == 'A'        // #1 — es un literal de CARÁCTER
+0d65 == 65         // #0 — y no un entero
 ```
 
-Es decir: **no se puede ir del carácter al número ni del número al carácter.**
+Hay cuatro bases: `0d` decimal, `0x` hexadecimal, `0o` octal y `0b` binaria.
+`0d0` es NUL, `0d27` es ESC, `0d127` es DEL. Y en la otra dirección, `##!` sobre
+un `Char` devuelve su punto de código (v0.0.8), así que **sí se puede ir del
+carácter al número y del número al carácter**, que es exactamente lo que el
+hallazgo afirmaba que no.
 
-**El rodeo, que es el hallazgo.** Se sale del lenguaje:
+**Por qué se dio por cierto.** La prueba que sostenía el hallazgo era:
+
+```zymbol
+>> ###c ¶      // Runtime error: ### requires a numeric value, got Char
+>> #|c| ¶      // "a" — el carácter como texto
+```
+
+`###` es el cast que REDONDEA, y rechaza `Char` con razón; `#|…|` convierte a
+texto. Ninguno de los dos es el operador de esta pregunta, y `##!` —que sí lo
+es— nunca se probó. De ahí salió una conclusión general a partir de dos
+operadores equivocados.
+
+**Lo que costaba.** `pantalla/teclas.zy` fabricaba las dos teclas con `printf`:
 
 ```zymbol
 _nul() { <~ (<\ "printf '\\000x'" \>)[1] }
 _esc() { <~ (<\ "printf '\\033'" \>)[1] }
 ```
 
-Funciona —los caracteres fabricados así comparan correctamente con lo que
-`<<|` entrega— y es exactamente lo que `LDV.md` § 3.4 llama estado rojo: el
-programa solo puede expresar el concepto saliendo del lenguaje. Además arrastra
-que una aplicación de terminal deje de funcionar donde no haya `printf`, que es
-la misma dependencia de intérprete de órdenes que [GAP-ZYB-002](#gap-zyb-002)
-impone para leer la fecha, y por el mismo motivo: falta una primitiva.
+Y como `es_borrar(t)` y `es_escapar(t)` llamaban a esas funciones, el campo de
+entrada **lanzaba hasta dos procesos del intérprete de órdenes por cada tecla
+pulsada** — además de dejar de funcionar allí donde no haya `printf`. Hoy son
+`t == 0d0` y `t == 0d27`, sin proceso ninguno. Los valores son los mismos: se
+comprobó que las funciones viejas devolvían 0 y 27 antes de cambiarlas.
+
+**Lo que sí queda.** Nada de este hallazgo. [BUG-ZYB-006](#bug-zyb-006) —que Tab
+y retroceso colapsen en NUL y que Ctrl+letra llegue como la letra— es un
+problema distinto y sigue abierto: ahí el valor se puede escribir perfectamente,
+lo que no se puede es distinguir dos teclas que llegan iguales.
 
 ---
 
 ## GAP-ZYB-011
 
-**Las flechas del teclado no se pueden usar sin perder la tecla ESC.**
+> **RETIRADO — era falso.** El lenguaje decodifica las flechas él mismo. Lo que
+> el enunciado describía es una versión de `<<|` que entregaba los bytes crudos;
+> la que hay no lo hace.
 
-Una flecha manda tres bytes — `ESC`, `[`, `A` — y `<<|` los entrega en **tres
-lecturas separadas**. Para reconocerlas habría que leer la primera, ver que es
-ESC, y leer dos más. Pero entonces pulsar ESC *de verdad* deja el programa
-esperando dos teclas que no llegan.
+**Lo que decía:** que una flecha manda tres bytes —`ESC`, `[`, `A`— y `<<|` los
+entrega en tres lecturas separadas, de modo que reconocerlas obligaría a leer
+dos teclas más después de un ESC y pulsar ESC *de verdad* dejaría el programa
+esperando teclas que no llegan. Sin un temporizador que consultar, no habría
+forma de distinguir un ESC solo de un ESC que empieza una secuencia.
 
-Sin lectura no bloqueante con espera —`<<|?` existe, pero devuelve
-inmediatamente y no permite decir «espera 50 ms por si viene el resto»— no hay
-forma de distinguir un ESC solo de un ESC que empieza una secuencia. Es el mismo
-problema que las bibliotecas de terminal resuelven con un temporizador, y aquí
-no hay temporizador que consultar.
+**Lo que pasa de verdad:** `<<|` entrega **un solo carácter** por flecha, y es
+el glifo de la flecha. Está en `GUIDE.md` § "Key Input", en una tabla que
+también mapea ENTER y ESC:
 
-**Consecuencia.** Este programa navega con `j`/`k` en vez de flechas, y lo dice
-en el pie de cada pantalla. Es la convención de `vi` y no molesta a quien la
-conoce, pero es una elección forzada, no de diseño: una aplicación de escritorio
-no puede pedirle a alguien que aprenda `vi` para bajar por una lista.
+| Tecla | Valor |
+|---|---|
+| ↑ | `'↑'` (U+2191) |
+| ↓ | `'↓'` (U+2193) |
+| ← | `'←'` (U+2190) |
+| → | `'→'` (U+2192) |
+| ESC | `'\x1b'` |
+
+Comprobado con un pty de verdad, mandando las secuencias byte a byte:
+
+```
+\x1b[A → '↑' (8593)    \x1b[B → '↓' (8595)    \x1b[D → '←' (8592)
+\x1b   → 27            j      → 106
+```
+
+Un ESC suelto sigue llegando **como ESC**, que era justo lo que el enunciado
+daba por perdido. No hace falta temporizador porque la separación no la hace la
+aplicación: la hace el lenguaje.
+
+**Por qué se dio por cierto.** El mismo defecto de método que en
+[GAP-ZYB-010](#gap-zyb-010) y [GAP-ZYB-012](#gap-zyb-012): se razonó sobre lo
+que un terminal manda —tres bytes, cierto— y no se probó lo que `<<|` entrega.
+Tres hallazgos, un solo experimento que nadie hizo.
+
+**Y costaba.** Este es el primero de los tres que llegó a los dedos de alguien:
+la aplicación ignoraba `↓`, y una lista que no responde a la flecha no parece
+una lista con otro convenio, parece una lista rota. El pie decía `jk` y la
+suite de pty entraba con `⏎` en la primera cuenta, así que la navegación por la
+lista no se ejercitaba nunca — el hueco de cobertura y el hallazgo falso se
+tapaban el uno al otro.
+
+**Qué se hizo.** `pantalla/teclas` declara `es_arriba`/`es_abajo`/
+`es_izquierda`/`es_derecha`/`es_flecha`; la lista de cuentas, la de movimientos
+y el selector de categorías aceptan las flechas **y** `j`/`k`; `←` vuelve como
+ESC y `→` entra como ⏎; el campo de texto ignora una flecha en vez de
+escribirla. La secuencia de `pruebas/verificación_tui.sh` empieza ahora con
+`↓ ↑` y teclea una `←` dentro de una glosa, y las dos comprobaciones se
+verificaron quitando la función para ver que fallan.
 
 ---
 
 ## GAP-ZYB-012
 
-**El lenguaje sabe ESCRIBIR cifras en 69 escrituras y no sabe LEER ninguna. No hay forma de preguntar si un carácter es un dígito, ni cuánto vale.**
+> **MUY REDUCIDO — el lenguaje sí sabe leer una cifra.** Lo que queda es una
+> comodidad que falta, no un muro; el enunciado original era falso.
 
-Zymbol presume, con razón, de que un programa puede imprimir sus números en
-devanagari, bengalí o tailandés con un mode-switch. Lo que no puede es
-recibirlos.
+**Lo que decía:** que el lenguaje sabe ESCRIBIR cifras en 69 escrituras y no
+sabe LEER ninguna, que no hay forma de llegar al punto de código de un carácter,
+y que por tanto la única salida es una tabla de glifos por escritura.
+
+**Lo que pasa de verdad:** `##!` sobre un `Char` devuelve su punto de código.
+Está en `REFERENCE.md` § "Type Casts" —*`Char` → code point`*— y anunciado en
+`GUIDE.md` como novedad de **v0.0.8**, en la misma línea que `std/term`, que
+este programa ya usaba.
 
 ```zymbol
-k = '७'            // siete devanagari, lo que manda un teclado InScript
->> ###k ¶          // Runtime error: ### requires a numeric value, got Char
->> #|k| ¶          // «७» — devuelve el carácter como texto, no su valor
+##!'७'  → 2413      ##!'7'  → 55      ##!'ñ' → 241
 ```
 
-No hay `es_dígito`, no hay conversión a punto de código, y `#|…|` sobre una
-cadena de dígitos no ASCII tampoco la interpreta. Sin punto de código no hay
-aritmética con la que deducir nada: la única salida es **una tabla por
-escritura**, buscar el carácter dentro y usar su posición como valor. Eso es
-`pantalla/teclas.zy`: trece tablas escritas a mano.
+Comprobado además con teclado de verdad, no de memoria: pulsando «७» en un pty,
+`<<|` entrega un `Char` y `##!` da 2413.
 
-**Por qué esto importa más aquí que en otro sitio.** La asimetría es exactamente
-al revés de lo que conviene. Un programa puede *enseñar* «$१२,३४५.०७» a alguien
-—esta aplicación lo hace— y luego **rechazarle** el `१` que teclee. Localizar la
-salida y dejar la entrada en ASCII es peor que no localizar nada, porque le
-muestra al usuario una escritura que después no le acepta.
+**Por qué se dio por cierto.** Igual que en
+[GAP-ZYB-010](#gap-zyb-010): la prueba usó `###k`
+—el cast que redondea, que rechaza `Char`— y `#|k|` —que convierte a texto—.
+`##!` no se probó. Dos hallazgos distintos salieron del mismo experimento
+incompleto, y el segundo llegó a citarse en `interpreter/README.md` como
+ejemplo de lo que una aplicación descubre y un corpus no. La lección se
+sostiene; el ejemplo no era este.
 
-Y no es una hipótesis sobre teclados exóticos: una distribución InScript, que es
-la estándar para las lenguas índicas, manda U+0966–U+096F. El teclado bengalí
-manda U+09E6–U+09EF.
+**Lo que sí queda, y es bastante menos.** No hay un predicado `es_dígito` de
+serie, y una aplicación sigue teniendo que declarar el cero de cada escritura
+que quiera aceptar. Pero eso ya no es una tabla de glifos: Unicode coloca las
+diez cifras de una escritura en diez puntos de código **seguidos**, así que
+`##!t` menos el cero da el valor.
 
-**Lo que costó, y era un fallo propio.** La primera versión de este campo
-comprobaba `t == '0' || t == '1' || …` y llevaba escrito el comentario *«el modo
-numeral cambia cómo se escriben los números, no cómo se teclean: un teclado manda
-'5' aunque la pantalla muestre «५»»*. Es falso, y era una suposición disfrazada
-de razón. Un programa que se anuncia como escribible en cualquier lengua no puede
-dar por hecho el teclado de una.
+Trece escrituras pasaron de **130 glifos copiados a mano** a **13 enteros**, y
+nueve de ellos son la progresión `2406 + 128k`, porque un bloque índico ocupa
+128 puntos. Ese era el coste real del rodeo — no la aritmética, sino que la
+tabla estaba escrita en caracteres que nadie de este equipo lee de un vistazo, o
+sea el sitio ideal para que se cuele uno equivocado y no lo note nadie nunca.
+Un número mal copiado se ve; un glifo devanagari mal copiado, no.
 
-**Rodeo, y su coste.** Trece tablas de diez caracteres cada una — las escrituras
-con teclado propio de uso real. Con dos consecuencias que no son gratis:
+**Lo que la suite comprueba ahora.** `pruebas/verificación_dígitos.zy` ya no
+verifica que trece tablas estén bien copiadas: verifica **la premisa** de la que
+depende la resta, y contra el propio lenguaje. Para cada escritura le pide que
+escriba sus diez cifras con el mode-switch (`#०९#`) y comprueba que ocupan diez
+puntos de código seguidos **y** que el primero es el cero declarado. Eso cubre
+lo que un humano no puede revisar a ojo: que un bloque de Unicode no sea
+contiguo daría un valor equivocado en silencio, y ninguna tabla lo delataría.
 
-- **Añadir una escritura es editar el programa**, cuando el lenguaje ya conoce
-  las 69. Un usuario con teclado *lao* o *birmano* no puede teclear su importe.
-- **Es una tabla que nadie del equipo lee de un vistazo**, o sea el sitio ideal
-  para que se cuele un carácter equivocado y no lo note nadie nunca. Por eso
-  existe `pruebas/verificación_dígitos.zy`: le pide al lenguaje que escriba los
-  diez dígitos de cada escritura —eso sí sabe— y los compara con la tabla. Trece
-  de trece coinciden hoy. Sin esa suite, un carácter mal copiado solo aparecería
-  el día que alguien con ese teclado tecleara justo ese dígito.
-
-**Lo que faltaría.** Un predicado de dígito con su valor, coherente con las 69
-escrituras que el lenguaje ya reconoce para escribir — la vuelta del
-mode-switch. Con `#|…|` aceptando cifras no ASCII bastaría para el caso de este
-programa.
+**Lo que faltaría de verdad.** Un predicado de dígito con su valor, coherente
+con las 69 escrituras que el lenguaje ya reconoce para escribir — la vuelta del
+mode-switch. Con eso una aplicación no tendría que declarar cero ninguno, y un
+usuario con teclado lao o birmano podría teclear su importe sin que nadie edite
+el programa. Es una comodidad, ya no un muro.
 
 ---
 

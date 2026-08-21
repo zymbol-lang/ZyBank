@@ -36,7 +36,7 @@
     <# ../núcleo/dinero => din
     <# std/term => tm
 
-    #> { número, texto, confirmar, elegir }
+    #> { número, fecha, texto, confirmar, elegir }
 
     ETIQUETA := 250
     ENTRADA  := 231
@@ -70,7 +70,7 @@
 
     // ── El campo de importe ──────────────────────────────────
     //
-    // Devuelve (confirmado, monto_entero). El monto sale ya en la
+    // Devuelve (confirmado, importe_entero). El importe sale ya en la
     // unidad menor de la moneda: quien lo recibe no vuelve a
     // interpretar el texto, porque el texto no sale de aquí.
     //
@@ -165,6 +165,189 @@
         <~ (#0, 0)
     }
 
+    // ── El campo de fecha ────────────────────────────────────
+    //
+    // Misma doctrina que el campo de importe: se teclean DÍGITOS y
+    // los guiones los pone el campo. No hay forma de escribir
+    // «2026-08-2100» porque no hay forma de escribir un guion ni un
+    // undécimo dígito — el estado inválido no llega a existir, en
+    // vez de detectarse al confirmar.
+    //
+    // Y ENTER no confirma una fecha que no es una fecha. Ocho
+    // dígitos bien colocados siguen pudiendo decir «2026-02-31», y
+    // eso no es un día: es una cadena con forma de día. Un libro de
+    // cuentas ordena por fecha y resume por periodo, así que una
+    // fecha que no existe no desordena la pantalla, desordena el
+    // dinero.
+    //
+    // Los dígitos entran en CUALQUIERA de las trece escrituras, por
+    // lo mismo que en el importe: un teclado hindi manda «२» y eso
+    // es un dos. Se guarda el valor y se pinta en la escritura del
+    // idioma activo.
+    //
+    // EN: same doctrine as the amount field — DIGITS are typed and
+    // the field puts the dashes. "2026-08-2100" cannot be written
+    // because neither a dash nor an eleventh digit can be. And ENTER
+    // does not confirm a date that is not one: eight well-placed
+    // digits can still spell "2026-02-31", which is a string shaped
+    // like a day. A ledger sorts by date and summarises by period,
+    // so a date that does not exist does not disarrange the screen,
+    // it disarranges the money. Digits are taken in any of the
+    // thirteen scripts.
+
+    // Un texto de dígitos ASCII a su número. `###` no toma texto y
+    // `##!` quiere un Char, mientras que un trozo de cadena es una
+    // cadena: la vuelta es la misma que da `teclas::transliterar`,
+    // comparar contra la tabla y quedarse con la posición.
+    // EN: a string of ASCII digits to its number. `###` does not
+    // take text and `##!` wants a Char, while a slice is a String;
+    // the way round is the one `teclas::transliterar` already takes.
+    _entero(texto) {
+        ascii = "0123456789"
+        n = 0
+        i = 1
+        @ i <= texto$# {
+            c = texto$[i..i]
+            j = 1
+            @ j <= 10 {
+                ? c == ascii$[j..j] { n = °n * 10 + (j - 1) }
+                j++
+            }
+            i++
+        }
+        <~ n
+    }
+
+    _bisiesto(a) {
+        ? a % 400 == 0 { <~ #1 }
+        ? a % 100 == 0 { <~ #0 }
+        <~ a % 4 == 0
+    }
+
+    _días_del_mes(a, m) {
+        ? m == 2 {
+            ? _bisiesto(a) { <~ 29 }
+            <~ 28
+        }
+        ? m == 4  { <~ 30 }
+        ? m == 6  { <~ 30 }
+        ? m == 9  { <~ 30 }
+        ? m == 11 { <~ 30 }
+        <~ 31
+    }
+
+    // (válida, "AAAA-MM-DD") a partir de los ocho dígitos crudos.
+    // EN: (valid, "YYYY-MM-DD") from the eight raw digits.
+    _armar_fecha(crudo) {
+        ? crudo$# < 8 { <~ (#0, "") }
+        sa = crudo$[1..4]
+        sm = crudo$[5..6]
+        sd = crudo$[7..8]
+        a = _entero(sa)
+        m = _entero(sm)
+        d = _entero(sd)
+        ? m < 1  { <~ (#0, "") }
+        ? m > 12 { <~ (#0, "") }
+        ? d < 1  { <~ (#0, "") }
+        ? d > _días_del_mes(a, m) { <~ (#0, "") }
+        <~ (#1, sa "-" sm "-" sd)
+    }
+
+    // Lo tecleado, con los guiones puestos y el hueco a la vista.
+    // EN: what was typed, with the dashes in and the gap visible.
+    _pintar_fecha(crudo) {
+        molde = "AAAA-MM-DD"
+        salida = ""
+        i = 1
+        j = 1
+        @ i <= 10 {
+            trozo = molde$[i..i]
+            ? trozo == "-" { salida = °salida "-" }
+            _ {
+                ? j <= crudo$# {
+                    salida = °salida crudo$[j..j]
+                }
+                _ { salida = °salida "_" }
+                j = °j + 1
+            }
+            i++
+        }
+        <~ salida
+    }
+
+    fecha(fila, col, etiqueta, inicial) {
+        // La fecha que llega se descompone en sus ocho dígitos: el
+        // campo solo conoce dígitos, así que lo propuesto entra por
+        // la misma puerta que lo tecleado y los guiones se caen
+        // solos.
+        //
+        // Se compara contra la tabla ASCII en vez de llamar a
+        // `teclas::es_dígito`, que quiere un Char: un trozo de
+        // cadena es una CADENA, y `##!` la rechaza. Lo que llega
+        // aquí siempre es ASCII —`al::hoy()` fuerza `#09#`— así que
+        // la tabla basta.
+        //
+        // EN: the incoming date is broken into its eight digits, so
+        // what is proposed comes in through the same door as what is
+        // typed. Compared against the ASCII table rather than
+        // calling `teclas::es_dígito`, which wants a Char: a slice
+        // is a STRING and `##!` refuses it.
+        ascii = "0123456789"
+        crudo = ""
+        i = 1
+        @ i <= inicial$# {
+            c = inicial$[i..i]
+            j = 1
+            @ j <= 10 {
+                ? c == ascii$[j..j] { crudo = °crudo c }
+                j++
+            }
+            i++
+        }
+        ? crudo$# > 8 { crudo = crudo$[1..8] }
+
+        vivo = #1
+        confirmado = #0
+        salida = ""
+
+        @ vivo {
+            _limpiar(fila, col, 40)
+            >>~ (fila, col, 0, ETIQUETA, 0) > etiqueta
+            marca = k::transliterar(_pintar_fecha(crudo))
+            >>~ (fila, col + tm::width(etiqueta) + 1, 1, ENTRADA, 0) > marca
+
+            (válida, texto_fecha) = _armar_fecha(crudo)
+            ? !válida {
+                ? crudo$# == 8 {
+                    >>~ (fila, col + tm::width(etiqueta) + 14, 0, AVISO, 0) > "✗"
+                }
+            }
+
+            <<| t
+
+            ? k::es_entrar(t) {
+                ? válida {
+                    salida = texto_fecha
+                    confirmado = #1
+                    vivo = #0
+                }
+            }
+            _? k::es_escapar(t) {
+                vivo = #0
+            }
+            _? k::es_borrar(t) {
+                ? crudo$# > 0 { crudo = crudo$-[crudo$#] }
+            }
+            _? k::es_dígito(t) {
+                ? crudo$# < 8 { crudo = crudo k::dígito_ascii(t) }
+            }
+        }
+
+        _limpiar(fila, col, 40)
+        ? confirmado { <~ (#1, salida) }
+        <~ (#0, inicial)
+    }
+
     // ── El campo de texto ────────────────────────────────────
     //
     // Para glosas y nombres. Acepta cualquier carácter imprimible,
@@ -198,6 +381,21 @@
             _? k::es_borrar(t) {
                 ? crudo$# > 0 { crudo = crudo$-[crudo$#] }
             }
+            _? k::es_flecha(t) {
+                // Una flecha no se escribe. El campo acepta
+                // «cualquier carácter imprimible» y una flecha llega
+                // como uno —'←' es un carácter—, así que sin esta
+                // rama pulsarla metería la punta de flecha en la
+                // glosa. No mueve el cursor porque este campo no
+                // tiene cursor que mover: se escribe y se borra por
+                // el final.
+                // EN: an arrow is not typed. The field takes "any
+                // printable character" and an arrow arrives as one,
+                // so without this branch pressing it would put the
+                // arrowhead into the note. It does not move a cursor
+                // because this field has none: it is written and
+                // erased from the end.
+            }
             _ {
                 // Se mide en COLUMNAS y no en caracteres: «食費»
                 // ocupa cuatro columnas del campo, no dos.
@@ -214,15 +412,17 @@
 
     // ── Elegir de una lista ──────────────────────────────────
     //
-    // `j`/`k` mueven, ENTER elige, ESC cancela. Las flechas no:
-    // llegan como tres lecturas (ESC, '[', 'A') y la primera es
-    // indistinguible de pulsar ESC de verdad, así que un menú que
-    // las aceptara no podría cancelarse. GAP-ZYB-011.
+    // ↑↓ o `j`/`k` mueven, ENTER o → elige, ESC o ← cancela.
     //
-    // EN: `j`/`k` move, ENTER picks, ESC cancels. Not the arrows:
-    // they arrive as three reads (ESC, '[', 'A') whose first is
-    // indistinguishable from a real ESC, so a menu accepting them
-    // could not be cancelled. GAP-ZYB-011.
+    // Las flechas se aceptan porque `<<|` las entrega ya decodificadas
+    // y un ESC suelto sigue distinguiéndose (ver `pantalla/teclas`).
+    // `j`/`k` se quedan: quien viene de `vi` no tiene por qué soltar
+    // la fila de inicio, y las dos formas no se estorban.
+    //
+    // EN: ↑↓ or `j`/`k` move, ENTER or → picks, ESC or ← cancels.
+    // The arrows are taken because `<<|` hands them over decoded and
+    // a bare ESC is still told apart (see `pantalla/teclas`). `j`/`k`
+    // stay: whoever comes from `vi` need not leave the home row.
     elegir(fila, col, ancho, opciones, etiqueta) {
         sel = 1
         vivo = #1
@@ -247,17 +447,17 @@
 
             <<| t
 
-            ? k::es_entrar(t) {
+            ? k::es_entrar(t) || k::es_derecha(t) {
                 confirmado = #1
                 vivo = #0
             }
-            _? k::es_escapar(t) {
+            _? k::es_escapar(t) || k::es_izquierda(t) {
                 vivo = #0
             }
-            _? t == 'j' {
+            _? t == 'j' || k::es_abajo(t) {
                 ? sel < opciones$# { sel++ }
             }
-            _? t == 'k' {
+            _? t == 'k' || k::es_arriba(t) {
                 ? sel > 1 { sel-- }
             }
         }

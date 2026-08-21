@@ -90,8 +90,8 @@ fallos = fallos + igual("dos separadores",           vuelta("USD", "1.2.3"), "«
 fallos = fallos + igual("medio dólar", vuelta("USD", "0.5"), "$0.50")
 
 >> "== el reparto suma exactamente ==" ¶
-suma_de(monto, partes) {
-    trozos = d::repartir(monto, partes)
+suma_de(importe, partes) {
+    trozos = d::repartir(importe, partes)
     s = 0
     @ t:trozos { s = s + t }
     <~ s

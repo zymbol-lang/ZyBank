@@ -33,7 +33,7 @@ cuadra(código, moneda) {
     t::fijar(código)
     mon = m::obtener(moneda)
     enc = [t::texto("campo.fecha"), t::texto("campo.categoría"),
-           t::texto("campo.monto"), t::texto("campo.glosa")]
+           t::texto("campo.importe"), t::texto("campo.glosa")]
     filas = [
         ["2026-08-01", t::categoría("gasto.alimentación"), d::formatear(0 - 25990, mon), "Feria"],
         ["2026-08-05", t::categoría("ingreso.sueldo"),     d::formatear(1200000, mon),  "Sueldo agosto"],

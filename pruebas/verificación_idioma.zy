@@ -74,7 +74,7 @@ igual(qué, dado, esperado) {
 }
 
 >> "== el contrato no ha encogido ==" ¶
-fallos = fallos + igual("claves del idioma base", t::claves()$# , 68)
+fallos = fallos + igual("claves del idioma base", t::claves()$# , 75)
 fallos = fallos + igual("idiomas registrados", t::idiomas()$#, 4)
 
 >> "== la misma clave, cuatro idiomas ==" ¶

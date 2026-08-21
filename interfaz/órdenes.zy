@@ -97,9 +97,9 @@
         <~ [
             "iniciar                                          ",
             "cuentas                                          ",
-            "nueva <nombre> <moneda> [saldo]                   ",
-            "anotar <cuenta> <categoría> <monto> [glosa] [fecha]",
-            "traspasar <origen> <destino> <monto> [monto-destino] [glosa]",
+            "nueva <nombre> <moneda> [apertura] [fecha]      ",
+            "anotar <cuenta> <categoría> <importe> [glosa] [fecha]",
+            "traspasar <origen> <destino> <importe> [importe-destino] [glosa]",
             "movimientos [cuenta] [cuántos]                    ",
             "resumen [cuenta] [desde] [hasta]                  ",
             "config [clave] [valor]                            ",

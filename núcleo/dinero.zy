@@ -56,14 +56,14 @@
         <~ f
     }
 
-    signo(monto) {
-        ? monto < 0 { <~ -1 }
+    signo(importe) {
+        ? importe < 0 { <~ -1 }
         <~ 1
     }
 
-    absoluto(monto) {
-        ? monto < 0 { <~ 0 - monto }
-        <~ monto
+    absoluto(importe) {
+        ? importe < 0 { <~ 0 - importe }
+        <~ importe
     }
 
     // Antepone ceros hasta que el texto tenga `ancho` dígitos.
@@ -124,11 +124,11 @@
     // `moneda` is the dictionary from configuración/monedas.zy —
     // passed whole so that adding a formatting trait does not
     // change every call site's signature.
-    formatear(monto, moneda) {
+    formatear(importe, moneda) {
         exp = moneda["exponente"]
         f = factor(exp)
-        neg = monto < 0
-        a = absoluto(monto)
+        neg = importe < 0
+        a = absoluto(importe)
 
         entera = "" (a / f)
         entera = agrupar(entera, moneda["miles"])
@@ -178,11 +178,11 @@
     // For files, CSV and queries; never for the screen. The caller
     // must have set `#09#` first (the numeral mode reaches
     // io::write and the shell — USERAPPI18N §14, trap 1).
-    formatear_llano(monto, moneda) {
+    formatear_llano(importe, moneda) {
         exp = moneda["exponente"]
         f = factor(exp)
-        neg = monto < 0
-        a = absoluto(monto)
+        neg = importe < 0
+        a = absoluto(importe)
         cuerpo = "" (a / f)
         ? exp > 0 {
             resto = a % f
@@ -194,7 +194,7 @@
     }
 
     // Texto de una persona → entero en la unidad menor.
-    // Devuelve (válido, monto). Nunca aborta: lo que se está
+    // Devuelve (válido, importe). Nunca aborta: lo que se está
     // leyendo es lo que alguien acaba de teclear.
     //
     // Acepta el separador de miles de la moneda y su separador
@@ -286,10 +286,10 @@
     // EN: Splits an amount into n parts that SUM EXACTLY to it. The
     // remainder is handed out one minor unit at a time. The suite
     // checks the invariant, not the values.
-    repartir(monto, partes) {
+    repartir(importe, partes) {
         ? partes <= 0 { <~ [] }
-        s = signo(monto)
-        a = absoluto(monto)
+        s = signo(importe)
+        a = absoluto(importe)
         base = a / partes
         resto = a % partes
         salida = []

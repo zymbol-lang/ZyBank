@@ -4,14 +4,30 @@ ok   dos migraciones, ninguna categoría
 ok   primera siembra
 ok   segunda siembra no duplica
 ok   total de categorías
-ok   solo gastos
-ok   solo ingresos
+ok   solo cargos
+ok   solo abonos
 == cuentas en dos monedas con exponentes distintos ==
 ok   cuenta CLP creada
 ok   cuenta USD creada
 ok   nombre repetido se rechaza
 ok   saldo inicial CLP
 ok   saldo inicial USD
+== abrir una cuenta escribe su asiento de apertura ==
+ok   hay una línea
+ok   por el importe de apertura
+ok   con la fecha que se dio
+ok   y su categoría
+ok   que cuelga de su propio grupo
+ok   y abona
+ok   cuenta en descubierto creada
+ok   su saldo es negativo
+ok   y su apertura carga
+ok   cuenta a cero creada
+ok   sin asiento de apertura
+ok   y saldo cero
+ok   la apertura existe
+ok   pero no se ofrece al anotar
+ok   ninguna es de apertura
 == una comilla es un carácter, no una inyección ==
 ok   la glosa llegó entera
 ok   la tabla sigue en pie
@@ -19,14 +35,14 @@ ok   la tabla sigue en pie
 ok   saldo tras dos movimientos
 == el traspaso es atómico y respeta las dos monedas ==
 ok   traspaso hecho
-ok   origen descontado
+ok   origen cargado
 ok   destino aumentado en SU moneda
-== los dos asientos existen y comparten marca ==
-ok   dos asientos marcados
+== las dos partidas existen y comparten marca ==
+ok   dos partidas marcadas
 == a la misma cuenta no se traspasa ==
 ok   rechazado
 ok   y dice por qué
-ok   sin asientos nuevos
+ok   sin partidas nuevas
 == el resumen no suma entre monedas ni cuenta traspasos ==
 ok   una fila por categoría, todas CLP
 ok   ninguna fila mezcla monedas
@@ -35,27 +51,49 @@ ok   el gasto es el gasto
 ok   $! NO detecta la fila ausente
 ok   es_nulo SÍ la detecta
 ok   y no confunde una que sí existe
-== abonar y descontar son movimientos, no un saldo que cambia ==
+== abonar y cargar son movimientos, no un saldo que cambia ==
 ok   abonado
 ok   el saldo sube
-ok   descontado
+ok   cargado
 ok   el saldo baja
-ok   el saldo inicial NO se tocó
-ok   hay categoría de ajuste
+ok   la apertura sigue intacta
+ok   el ajuste que abona tiene categoría propia
+ok   y el que carga también
+ok   y no cuelga de ingresos ni gastos
+ok   el sentido del ajuste que abona
+ok   el sentido del ajuste que carga
 == corregir un asiento ==
 ok   actualizado
-ok   el monto cambió
+ok   el importe cambió
 ok   la glosa cambió
 == un traspaso no se corrige a medias ==
 ok   traspaso hecho
 ok   se rechaza editar media transferencia
 ok   y dice por qué
-== borrar un traspaso se lleva sus DOS asientos ==
+== borrar un traspaso se lleva sus DOS partidas ==
 ok   borrado
 ok   se fue entero
-ok   dos asientos menos
+ok   dos partidas menos
 == borrar un movimiento corriente se lleva uno ==
 ok   borrado
 ok   uno menos
 ok   y ya no está
+== una base escrita por la versión anterior se pone al día ==
+ok   el saldo sobrevivió al renombre
+ok   hay dos líneas: la apertura y la que ya estaba
+ok   la apertura existe como categoría
+ok   la apertura vale lo que valía la columna
+ok   y se fecha con el movimiento más antiguo
+ok   el importe viejo se lee por su nombre nuevo
+ok   la glosa no se movió
+ok   la columna saldo_inicial desapareció
+ok   un gasto pasó a ser un cargo
+ok   un ingreso pasó a ser un abono
+ok   el ajuste que abonaba salió de ingresos
+ok   y conserva su sentido
+ok   el ajuste que cargaba salió de gastos
+ok   la clave vieja ya no existe
+ok   ninguna categoría se perdió
+ok   tres abonan, con la de apertura
+ok   tres cargan, con la de apertura
 TODO BIEN

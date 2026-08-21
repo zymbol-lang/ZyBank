@@ -74,8 +74,8 @@
     // decisión de color con significado: un gasto en rojo se lee
     // antes que un signo menos.
     // EN: the only colour choice that carries meaning.
-    _color_de(monto) {
-        ? monto < 0 { <~ ROJO }
+    _color_de(importe) {
+        ? importe < 0 { <~ ROJO }
         <~ VERDE
     }
 
@@ -84,8 +84,22 @@
         >>~ (1, 1, 1, TÍTULO, 0) > tm::center(t, ancho)
     }
 
+    // El pie se RECORTA antes de centrarlo. `tm::center` no recorta
+    // —devuelve la cadena entera cuando no cabe—, así que un pie más
+    // largo que el terminal se derrama a la línea siguiente y empuja
+    // la pantalla entera hacia arriba. No es hipotético: el pie de
+    // cuentas ya medía 74 columnas en español y cada tecla nueva le
+    // suma una docena, en cuatro idiomas de anchos distintos. Nadie
+    // lo mide al añadir una tecla, así que se mide aquí.
+    //
+    // EN: the footer is TRUNCATED before centring. `tm::center` does
+    // not truncate — it returns the whole string when it does not fit
+    // — so a footer wider than the terminal spills onto the next line
+    // and pushes the whole screen up. Not hypothetical: the accounts
+    // footer already measured 74 columns in Spanish and every new key
+    // adds a dozen, across four locales of different widths.
     _pie(fila, ancho, ayuda) {
-        >>~ (fila, 1, 0, TENUE, 0) > tm::center(ayuda, ancho)
+        >>~ (fila, 1, 0, TENUE, 0) > tm::center(tm::truncate(ayuda, ancho), ancho)
     }
 
     _decir(fila, ancho) {
@@ -136,9 +150,10 @@
         nue = idi::texto("acción.cuenta_nueva")
         mov = idi::texto("menú.movimientos")
         res = idi::texto("menú.resumen")
+        tra = idi::texto("acción.traspasar")
         len = idi::nombre_idioma(idi::actual())
         sal = idi::texto("menú.salir")
-        _pie(alto, ancho, "jk ▸ ⏎ " mov " · c " nue " · r " res " · i " len " · q " sal)
+        _pie(alto, ancho, "↑↓/jk ▸ ⏎/→ " mov " · c " nue " · t " tra " · r " res " · i " len " · q " sal)
     }
 
     _cuenta_nueva(alto, ancho) {
@@ -161,15 +176,36 @@
         código = códigos[cual]
 
         m = mon::obtener(código)
-        (ok3, inicial) = cp::número(8, 3, 14, m, idi::texto("campo.saldo") ":")
+        (ok3, apertura) = cp::número(8, 3, 14, m, idi::texto("campo.saldo") ":")
         ? !ok3 { <~ #0 }
 
-        (creada, _id) = al::crear_cuenta(nombre, código, inicial)
+        // La fecha de la apertura se PREGUNTA, con hoy propuesto.
+        // Una cuenta que se abrió hace años y se registra hoy con la
+        // fecha de hoy deja su saldo de apertura fuera de cualquier
+        // resumen de un periodo anterior — el dinero aparecería
+        // apareciendo el día que alguien se sentó a teclearlo.
+        //
+        // Es un campo de FECHA, no uno de texto: se teclean dígitos,
+        // los guiones los pone el campo y ENTER no confirma un
+        // «2026-02-31». Un libro de cuentas ordena por fecha y
+        // resume por periodo, así que una fecha que no existe no
+        // desordena la pantalla, desordena el dinero.
+        //
+        // EN: the opening date is ASKED, with today proposed. An
+        // account opened years ago and entered today with today's
+        // date drops its opening balance out of every earlier period
+        // summary. It is a DATE field, not a text one: digits are
+        // typed, the field puts the dashes, and ENTER does not
+        // confirm a "2026-02-31".
+        (ok4, fecha) = cp::fecha(10, 3, idi::texto("campo.fecha") ":", al::hoy())
+        ? !ok4 { <~ #0 }
+
+        (creada, _id) = al::crear_cuenta(nombre, código, apertura, fecha)
         ? !creada {
-            aviso = idi::texto("msg.monto_inválido")
+            aviso = idi::texto("msg.importe_inválido")
             <~ #0
         }
-        aviso = idi::texto("msg.cuenta_creada") ": " nombre " " din::formatear(inicial, m)
+        aviso = idi::texto("msg.cuenta_creada") ": " nombre " " din::formatear(apertura, m)
         <~ #1
     }
 
@@ -190,15 +226,15 @@
         }
         _ {
             enc = [idi::texto("campo.fecha"), idi::texto("campo.categoría"),
-                   idi::texto("campo.monto"), idi::texto("campo.glosa")]
+                   idi::texto("campo.importe"), idi::texto("campo.glosa")]
             filas = []
-            montos = []
+            importes = []
             @ mv:movs {
                 nombre_cat = ""
                 ? al::es_nulo(mv.categoría) { nombre_cat = idi::texto("acción.traspasar") }
                 _ { nombre_cat = idi::categoría(mv.categoría) }
-                filas = °filas$+ [mv.fecha, nombre_cat, din::formatear(mv.monto, m), mv.glosa]
-                montos = °montos$+ mv.monto
+                filas = °filas$+ [mv.fecha, nombre_cat, din::formatear(mv.importe, m), mv.glosa]
+                importes = °importes$+ mv.importe
             }
             líneas = tab::componer(enc, filas, ["izq", "izq", "der", "izq"])
             fila = 4
@@ -208,7 +244,7 @@
                 estilo = 0
                 marca = "  "
                 ? i > 2 {
-                    color = _color_de(montos[i - 2])
+                    color = _color_de(importes[i - 2])
                     ? (i - 2) == sel {
                         estilo = 1
                         marca = "▸ "
@@ -224,9 +260,10 @@
         edi = idi::texto("acción.editar")
         bor = idi::texto("acción.borrar")
         abo = idi::texto("acción.abonar")
-        des = idi::texto("acción.descontar")
+        car = idi::texto("acción.cargar")
+        tra = idi::texto("acción.traspasar")
         len = idi::nombre_idioma(idi::actual())
-        _pie(alto, ancho, "n " nue " · e " edi " · x " bor " · + " abo " · - " des " · i " len " · ⏎ ←")
+        _pie(alto, ancho, "↑↓/jk ▸ n " nue " · e " edi " · x " bor " · + " abo " · - " car " · t " tra " · i " len " · ⏎ ←")
     }
 
     // Elegir categoría, con los nombres en el idioma activo y las
@@ -234,12 +271,15 @@
     // EN: pick a category — names in the active locale, KEYS
     // returned, since the key is what gets stored.
     _elegir_categoría(fila) {
-        cats = al::categorías("")
+        cats = al::categorías_anotables()
         ? cats$# == 0 { <~ (#0, 0) }
         etiquetas = []
+        // La marca es el SENTIDO de la categoría, no su
+        // naturaleza: `+` abona, `−` carga.
+        // EN: the mark is the category's sentido, not its nature.
         @ c:cats {
             marca = "−"
-            ? c.tipo == "ingreso" { marca = "+" }
+            ? c.sentido == "abono" { marca = "+" }
             etiquetas = °etiquetas$+ (marca " " idi::categoría(c.clave))
         }
         (ok, cual) = cp::elegir(fila, 3, 34, etiquetas, idi::texto("msg.elige_categoría") ":")
@@ -256,20 +296,20 @@
         ? !okc { <~ #0 }
 
         m = mon::obtener(cuenta.moneda)
-        (okm, monto) = cp::número(6, 3, 14, m, idi::texto("campo.monto") ":")
+        (okm, importe) = cp::número(6, 3, 14, m, idi::texto("campo.importe") ":")
         ? !okm { <~ #0 }
 
         (okg, glosa) = cp::texto(8, 3, 30, idi::texto("campo.glosa") ":", "")
         ? !okg { <~ #0 }
 
-        // El signo lo pone el TIPO de la categoría, no quien teclea.
-        // Por eso el campo no acepta el signo menos: un gasto es
-        // negativo porque es un gasto.
-        // EN: the sign comes from the category's TYPE, which is why
-        // the field does not accept a minus at all.
-        final = monto
-        ? cat.tipo == "gasto" {
-            ? monto > 0 { final = 0 - monto }
+        // El signo lo pone el SENTIDO de la categoría, no quien
+        // teclea. Por eso el campo no acepta el signo menos: un
+        // cargo es negativo porque es un cargo.
+        // EN: the sign comes from the category's SENTIDO, which is
+        // why the field does not accept a minus at all.
+        final = importe
+        ? cat.sentido == "cargo" {
+            ? importe > 0 { final = 0 - importe }
         }
         (hecho, _err) = al::anotar(al::hoy(), cuenta.id, cat.id, final, glosa)
         ? !hecho {
@@ -292,41 +332,133 @@
         // real reason is lost. In a TUI this gap is not awkward: the
         // error CANNOT BE SHOWN.
 
-            aviso = idi::texto("msg.monto_inválido")
+            aviso = idi::texto("msg.importe_inválido")
             <~ #0
         }
         aviso = idi::texto("msg.anotado") ": " din::formatear(final, m) " " idi::categoría(cat.clave)
         <~ #1
     }
 
-    _ajuste(cuenta, signo, alto, ancho) {
+    // El sentido llega como la palabra —"abono" o "cargo"— y no
+    // como un 1 o un −1. El signo es su consecuencia aritmética,
+    // no su nombre, y una función que recibe −1 no dice qué está
+    // haciendo con él.
+    // EN: the sentido arrives as the word — "abono" or "cargo" —
+    // not as 1 or −1. The sign is its arithmetic consequence, not
+    // its name.
+    _ajuste(cuenta, sentido, alto, ancho) {
         >>!
         _encabezado(ancho)
         etiqueta = idi::texto("acción.abonar")
-        ? signo < 0 { etiqueta = idi::texto("acción.descontar") }
+        ? sentido == "cargo" { etiqueta = idi::texto("acción.cargar") }
         >>~ (3, 3, 1, TÍTULO, 0) > etiqueta
 
         m = mon::obtener(cuenta.moneda)
-        (okm, monto) = cp::número(5, 3, 14, m, idi::texto("campo.monto") ":")
+        (okm, importe) = cp::número(5, 3, 14, m, idi::texto("campo.importe") ":")
         ? !okm { <~ #0 }
         (okg, glosa) = cp::texto(7, 3, 30, idi::texto("campo.glosa") ":", "")
         ? !okg { <~ #0 }
 
-        final = monto
-        ? signo < 0 { final = 0 - monto }
+        final = importe
+        ? sentido == "cargo" { final = 0 - importe }
         (hecho, _err) = al::ajustar(al::hoy(), cuenta.id, final, glosa)
         ? !hecho {
-            aviso = idi::texto("msg.monto_inválido")
+            aviso = idi::texto("msg.importe_inválido")
             <~ #0
         }
         aviso = etiqueta ": " din::formatear(final, m)
         <~ #1
     }
 
+    // ── Traspasar entre cuentas ──────────────────────────────
+    //
+    // Un traspaso NO es un gasto en una cuenta y un ingreso en la
+    // otra. Es UN asiento de DOS partidas —cargo en el origen, abono
+    // en el destino— que viven o mueren juntas, sin categoría y
+    // emparejadas por una marca. Por eso no pasa por `_nuevo` ni pide
+    // categoría: el dinero no sale del patrimonio, solo cambia de
+    // sitio, y contarlo como gasto e ingreso inflaría las dos
+    // columnas del resumen a la vez. `resumen_por_categoría` los
+    // excluye por eso mismo.
+    //
+    // Las monedas distintas no se convierten con una tasa inventada:
+    // se PIDE el importe que llega. Quien mueve 100 USD a una cuenta
+    // en pesos sabe a cuánto se los cambiaron; el programa no, y
+    // adivinarlo sería falsificar un asiento.
+    //
+    // EN: a transfer is not an expense in one account and an income
+    // in the other. It is ONE entry of TWO legs — debit at the
+    // source, credit at the destination — living or dying together,
+    // categoryless and paired by a mark; counting it as expense and
+    // income would inflate both columns of the summary at once.
+    // Across currencies the destination amount is ASKED FOR, never
+    // derived from an invented rate.
+    _traspaso(origen, alto, ancho) {
+        // El origen se quita de la lista ANTES de enseñarla, en vez
+        // de rechazarlo después: una opción que no se puede elegir
+        // no se ofrece.
+        // EN: the source is removed from the list before showing it,
+        // rather than refused afterwards.
+        destinos = []
+        @ c:al::cuentas() {
+            ? c.id <> origen.id { destinos = °destinos$+ c }
+        }
+        ? destinos$# == 0 {
+            aviso = idi::texto("msg.falta_otra_cuenta")
+            <~ #0
+        }
+
+        >>!
+        _encabezado(ancho)
+        mo = mon::obtener(origen.moneda)
+        >>~ (3, 3, 1, TÍTULO, 0) > idi::texto("acción.traspasar") "  " origen.nombre "  " din::formatear(al::saldo(origen.id), mo)
+
+        etiquetas = []
+        @ d:destinos {
+            etiquetas = °etiquetas$+ (d.nombre "  " d.moneda)
+        }
+        (okd, cual) = cp::elegir(5, 3, 34, etiquetas, idi::texto("campo.cuenta") ":")
+        ? !okd { <~ #0 }
+        destino = destinos[cual]
+        md = mon::obtener(destino.moneda)
+
+        // `elegir` ocupa su fila y una por opción; la siguiente libre
+        // es esa cuenta hecha.
+        // EN: `elegir` uses its own row plus one per option.
+        fila = 6 + destinos$#
+
+        (oko, importe_o) = cp::número(fila, 3, 14, mo, idi::texto("campo.importe") " " origen.moneda ":")
+        ? !oko { <~ #0 }
+
+        importe_d = importe_o
+        fila_glosa = fila + 2
+        ? origen.moneda <> destino.moneda {
+            >>~ (fila + 1, 3, 0, AVISO, 0) > idi::texto("msg.moneda_distinta")
+            (okv, v) = cp::número(fila + 2, 3, 14, md, idi::texto("campo.importe") " " destino.moneda ":")
+            ? !okv { <~ #0 }
+            importe_d = v
+            fila_glosa = fila + 4
+        }
+
+        (okg, glosa) = cp::texto(fila_glosa, 3, 30, idi::texto("campo.glosa") ":", "")
+        ? !okg { <~ #0 }
+
+        (hecho, _err) = al::traspasar(al::hoy(), origen.id, destino.id, importe_o, importe_d, glosa)
+        ? !hecho {
+            // `_err` se descarta por lo mismo que en `_nuevo`: un
+            // error blando no se puede llevar a texto (BUG-ZYB-003).
+            // EN: `_err` is dropped for the reason given in `_nuevo`.
+            aviso = idi::texto("msg.importe_inválido")
+            <~ #0
+        }
+        aviso = idi::texto("msg.traspasado") ": " din::formatear(importe_o, mo) " → " din::formatear(importe_d, md) "  " destino.nombre
+        <~ #1
+    }
+
     _editar(cuenta, mv, alto, ancho) {
-        // Los dos asientos de un traspaso no se editan: cada uno es
-        // la mitad de algo, y cambiar una mitad deja la otra
-        // mintiendo. Se dice y no se abre el formulario.
+        // Las dos partidas de un traspaso no se editan: cada una es
+        // la mitad de un solo asiento, y cambiar una mitad deja la
+        // otra mintiendo. Se dice y no se abre el formulario.
         // EN: the legs of a transfer are not editable — changing one
         // half leaves the other lying. Say so, do not open the form.
         ? !al::es_nulo(mv.traspaso) {
@@ -338,23 +470,23 @@
         >>~ (3, 3, 1, TÍTULO, 0) > idi::texto("acción.editar") "  " mv.fecha
 
         m = mon::obtener(cuenta.moneda)
-        (okm, monto) = cp::número(5, 3, 14, m, idi::texto("campo.monto") ":")
+        (okm, importe) = cp::número(5, 3, 14, m, idi::texto("campo.importe") ":")
         ? !okm { <~ #0 }
         (okg, glosa) = cp::texto(7, 3, 30, idi::texto("campo.glosa") ":", mv.glosa)
         ? !okg { <~ #0 }
 
         cat_id = 0
-        tipo = "gasto"
+        sentido = "cargo"
         ? !al::es_nulo(mv.categoría) {
             c = al::categoría_por_clave(mv.categoría)
             ? !al::es_nulo(c) {
                 cat_id = c.id
-                tipo = c.tipo
+                sentido = c.sentido
             }
         }
-        final = monto
-        ? tipo == "gasto" {
-            ? monto > 0 { final = 0 - monto }
+        final = importe
+        ? sentido == "cargo" {
+            ? importe > 0 { final = 0 - importe }
         }
         (hecho, _err) = al::actualizar(mv.id, mv.fecha, cat_id, final, glosa)
         ? !hecho {
@@ -462,7 +594,10 @@
                 ? t == 'q' || t == 'Q' {
                     @! principal
                 }
-                ? k::es_escapar(t) {
+                // ← vuelve, igual que ESC: es la misma acción y la
+                // flecha es la que busca quien no conoce el pie.
+                // EN: ← goes back, like ESC.
+                ? k::es_escapar(t) || k::es_izquierda(t) {
                     ? vista <> "cuentas" { vista = "cuentas" }
                 }
                 ? t == 'i' || t == 'I' {
@@ -472,7 +607,9 @@
                     ? vista == "resumen" { vista = "cuentas" }
                     _ { vista = "resumen" }
                 }
-                ? k::es_entrar(t) {
+                // → entra, igual que ⏎.
+                // EN: → opens, like ⏎.
+                ? k::es_entrar(t) || k::es_derecha(t) {
                     ? vista == "cuentas" {
                         ? cuentas$# > 0 {
                             abierta = cuentas[sel].id
@@ -482,7 +619,18 @@
                     }
                     _ { vista = "cuentas" }
                 }
-                ? t == 'j' {
+                // Bajar y subir, con la flecha o con `j`/`k`. Las
+                // dos formas y no una: el pie enseñaba solo `jk` y
+                // la primera reacción de quien abre la aplicación es
+                // pulsar la flecha, que no hacía nada — una lista
+                // que no responde a ↓ parece una lista rota, no una
+                // lista con otro convenio.
+                // EN: down and up, by arrow or by `j`/`k`. Both, not
+                // one: the footer showed only `jk`, and the first
+                // thing anyone does is press the arrow, which did
+                // nothing — a list that ignores ↓ looks broken, not
+                // like a list with a different convention.
+                ? t == 'j' || k::es_abajo(t) {
                     ? vista == "movimientos" {
                         ? sel_mov < movs$# { sel_mov++ }
                     }
@@ -490,7 +638,7 @@
                         ? sel < cuentas$# { sel++ }
                     }
                 }
-                ? t == 'k' {
+                ? t == 'k' || k::es_arriba(t) {
                     ? vista == "movimientos" {
                         ? sel_mov > 1 { sel_mov-- }
                     }
@@ -501,14 +649,30 @@
                 ? t == 'c' || t == 'C' {
                     ? vista == "cuentas" { _cuenta_nueva(alto, ancho) }
                 }
+                // El origen es la cuenta que se está mirando, en las
+                // dos vistas: en la lista, la señalada; dentro, la
+                // abierta. Preguntar por el origen cuando ya está en
+                // pantalla sería preguntar por lo que el usuario
+                // acaba de señalar.
+                // EN: the source is the account being looked at, in
+                // both views — the marked one in the list, the open
+                // one inside.
+                ? t == 't' || t == 'T' {
+                    ? vista == "cuentas" {
+                        ? cuentas$# > 0 { _traspaso(cuentas[sel], alto, ancho) }
+                    }
+                    ? vista == "movimientos" {
+                        ? abierta > 0 { _traspaso(cuenta, alto, ancho) }
+                    }
+                }
                 ? t == 'n' || t == 'N' {
                     ? vista == "movimientos" { _nuevo(cuenta, alto, ancho) }
                 }
                 ? t == '+' {
-                    ? vista == "movimientos" { _ajuste(cuenta, 1, alto, ancho) }
+                    ? vista == "movimientos" { _ajuste(cuenta, "abono", alto, ancho) }
                 }
                 ? t == '-' {
-                    ? vista == "movimientos" { _ajuste(cuenta, 0 - 1, alto, ancho) }
+                    ? vista == "movimientos" { _ajuste(cuenta, "cargo", alto, ancho) }
                 }
                 ? t == 'e' || t == 'E' {
                     ? vista == "movimientos" {

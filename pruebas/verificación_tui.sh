@@ -52,8 +52,19 @@ Z="$ROOT/zybank.zy"
 sembrar() {
     rm -f zybank.db zybank.json
     zymbol run "$Z" iniciar                                                   >/dev/null 2>&1
-    zymbol run "$Z" nueva Corriente CLP 500000                                >/dev/null 2>&1
-    zymbol run "$Z" nueva Ahorro USD 120050                                   >/dev/null 2>&1
+    # Las cuentas se abren CON FECHA, y no es cosmético: abrir una cuenta escribe
+    # su asiento de apertura, y sin fecha lleva la de hoy — que es posterior a los
+    # movimientos de agosto y sale ordenado el PRIMERO. La secuencia de teclas
+    # edita y borra "el movimiento seleccionado", así que sin esto `e` y `x`
+    # actuarían sobre la apertura y esta suite dejaría de probar lo que dice.
+    #
+    # EN: the accounts are opened WITH A DATE, and it is not cosmetic: opening an
+    # account writes its opening entry, and with no date it takes today's — later
+    # than the August movements, so it sorts FIRST. The key sequence edits and
+    # deletes "the selected movement", so without this `e` and `x` would act on
+    # the opening entry.
+    zymbol run "$Z" nueva Corriente CLP 500000 2026-01-01                     >/dev/null 2>&1
+    zymbol run "$Z" nueva Ahorro USD 120050 2026-01-01                        >/dev/null 2>&1
     zymbol run "$Z" anotar Corriente gasto.alimentación 25990 Feria 2026-08-01 >/dev/null 2>&1
     zymbol run "$Z" anotar Corriente ingreso.sueldo 1200000 Sueldo 2026-08-05  >/dev/null 2>&1
 }
@@ -64,6 +75,11 @@ sembrar
 # La secuencia ejerce la aplicación entera, no solo el dibujo. Se queda en la
 # primera cuenta, que es CLP — exponente 0 — a propósito:
 #
+#   ↓ ↑            BAJA A LA SEGUNDA CUENTA Y VUELVE. Las flechas llegan
+#                  decodificadas ('↓' es un carácter, no ESC + '[' + 'B'), y
+#                  esto es lo que nadie probaba: la secuencia entraba con ⏎ en
+#                  la primera cuenta y la navegación por la lista no se
+#                  ejercitaba nunca. Tiene que dejar la selección donde estaba.
 #   ⏎              abre Corriente (CLP)
 #   n ⏎            nuevo movimiento, primera categoría de la lista
 #   1 a २ . ৩      TECLEA UN IMPORTE CON BASURA Y CON DOS ESCRITURAS. El '1' es
@@ -72,11 +88,24 @@ sembrar
 #                  hindi manda U+0966 y no U+0030. La 'a' y el '.' no, porque
 #                  una no es un dígito y el otro no cabe en una moneda sin
 #                  decimales. El campo tiene que quedar en "123".
-#   ⏎ P a n ⏎      confirma importe y glosa
+#   ⏎ P a n ← ⏎    confirma importe y glosa. La ← EN MEDIO DE LA GLOSA no se
+#                  escribe: el campo acepta «cualquier carácter imprimible» y
+#                  una flecha llega como uno, así que sin la guarda la punta de
+#                  flecha acabaría dentro del texto. La glosa tiene que ser
+#                  "Pan" y no "Pan←".
 #   + 5 0 0 ⏎ A ⏎  abona saldo
 #   - 2 0 0 ⏎ B ⏎  descuenta saldo
 #   e 9 ⏎ C ⏎      corrige el movimiento seleccionado
 #   x s            borra el seleccionado, confirmando
+#   ← t ⏎          TRASPASA A LA OTRA CUENTA, que está en OTRA MONEDA. Sale de
+#   1 0 0 0 0 0 ⏎  la vista de movimientos, elige Ahorro (USD), da el importe de
+#   1 0 5 . 5 0 ⏎  origen en CLP y el de destino en USD —el programa no inventa
+#   C a m b i o ⏎  la tasa— y una glosa. Tiene que dejar DOS partidas
+#                  emparejadas: −$100.000 en Corriente y +$105.50 en Ahorro.
+#                  El punto decimal SÍ entra aquí y no antes: la moneda de
+#                  destino tiene dos decimales y la de origen ninguno, así que
+#                  el mismo campo acepta o rechaza el punto según la moneda que
+#                  le toque.
 #   i i            rota el idioma dos veces, en vivo
 #   q              sale
 #
@@ -84,11 +113,21 @@ sembrar
 # the CLP account — exponent 0 — on purpose. It types one ASCII, one Devanagari
 # and one Bengali digit: all three must enter, since a Hindi keyboard sends
 # U+0966, not U+0030. The 'a' and the '.' must not. The field must read "123".
-KEYS=('\r' n '\r' 1 a २ . ৩ '\r' P a n '\r'
+ABAJO='\x1b[B'; ARRIBA='\x1b[A'; IZQUIERDA='\x1b[D'
+# El retroceso es DEL (0x7f), no NUL: NUL es lo que el LENGUAJE entrega cuando se
+# pulsa, no lo que el terminal manda, y un NUL escrito en el pty no llega a
+# ninguna parte. Comprobado — con 0x00 esta prueba pasaba sin borrar nada.
+# EN: backspace is DEL (0x7f), not NUL: NUL is what the LANGUAGE delivers when it
+# is pressed, not what the terminal sends, and a NUL written into the pty goes
+# nowhere. Verified — with 0x00 this check passed without erasing anything.
+BORRAR='\x7f'
+KEYS=("$ABAJO" "$ARRIBA"
+      '\r' n '\r' 1 a २ . ৩ '\r' P a n "$IZQUIERDA" '\r'
       + 5 0 0 '\r' A '\r'
       - 2 0 0 '\r' B '\r'
       e 9 '\r' C '\r'
       x s
+      "$IZQUIERDA" t '\r' 1 0 0 0 0 0 '\r' 1 0 5 . 5 0 '\r' C a m b i o '\r'
       i i q)
 
 for motor in tw vm; do
@@ -112,6 +151,120 @@ if ! grep -aq -- '-\$123' salida.tw; then
     exit 1
 fi
 echo "ok   el campo tomó 1 (ascii) २ (devanagari) ৩ (bengalí) y rechazó la letra y el punto"
+
+# La ↓ tuvo que mover el cursor de la lista a la segunda cuenta. Se comprueba
+# que ESA pantalla existió: sin esto, una flecha que no hace nada pasaría
+# desapercibida exactamente como pasó hasta ahora — los dos motores harían lo
+# mismo (nada) y coincidirían.
+# EN: ↓ had to move the list cursor to the second account. Checked that THAT
+# frame existed: without this, an arrow that does nothing would go unnoticed
+# exactly as it did until now — both engines would do the same nothing and agree.
+# Se busca «▸ Ahorro» PEGADO, no «▸» y «Ahorro» en el mismo archivo: la salida
+# de un pty es un solo chorro de bytes y no tiene líneas de pantalla, así que
+# `grep '▸' | grep 'Ahorro'` da positivo aunque el cursor no se haya movido
+# nunca. Comprobado: con esa forma la prueba pasaba con las flechas quitadas.
+# EN: «▸ Ahorro» must be ADJACENT, not «▸» and «Ahorro» somewhere in the same
+# file — a pty's output is one byte stream with no screen lines, so the loose
+# form passes with the arrows removed. Verified, not assumed.
+if ! grep -aq 'Ahorro' salida.tw; then
+    echo "FALLO  la aplicación no llegó a pintar la segunda cuenta"
+    exit 1
+fi
+if ! grep -aq '▸ Ahorro' salida.tw; then
+    echo "FALLO  la flecha ↓ no movió la selección de la lista de cuentas"
+    exit 1
+fi
+echo "ok   ↓ bajó a la segunda cuenta y ↑ volvió a la primera"
+
+# La ← tecleada dentro de la glosa no debe haberse escrito.
+# EN: the ← typed inside the note must not have been written.
+if grep -aq 'Pan←' salida.tw; then
+    echo "FALLO  una flecha se escribió dentro del campo de texto"
+    exit 1
+fi
+echo "ok   la flecha no se escribió dentro de la glosa"
+
+# El traspaso entre monedas distintas: dos partidas, cada una en la suya. Se
+# comprueba contra la BASE y no contra la pantalla, porque lo que importa no es
+# lo que se pintó sino lo que quedó escrito — y lo que tiene que quedar escrito
+# son dos filas con la MISMA marca de traspaso y signos opuestos.
+# EN: the cross-currency transfer — two legs, each in its own currency. Checked
+# against the DATABASE rather than the screen: what matters is not what was
+# painted but what was written, and what must be written is two rows sharing one
+# transfer mark with opposite signs.
+#
+# `sqlite3` no es requisito de esta suite —el resto se juzga por pantalla— así
+# que si no está, esta comprobación se OMITE y se dice. Callarla la convertiría
+# en una que pasa siempre.
+# EN: `sqlite3` is not a requirement of this suite, so if it is missing this
+# check is SKIPPED and says so. Staying quiet would make it always-pass.
+if ! command -v sqlite3 >/dev/null; then
+    echo "omitida  el traspaso (sin sqlite3 para mirar la base)"
+else
+partidas="$(sqlite3 zybank.db "SELECT importe FROM movimientos WHERE traspaso IS NOT NULL ORDER BY importe" 2>/dev/null | tr '\n' ' ')"
+if [ "$partidas" != "-100000 10550 " ]; then
+    echo "FALLO  el traspaso no dejó las dos partidas: [$partidas]"
+    echo "       esperado: [-100000 10550 ]  (−\$100.000 CLP y +\$105.50 USD)"
+    exit 1
+fi
+marcas="$(sqlite3 zybank.db "SELECT COUNT(DISTINCT traspaso) FROM movimientos WHERE traspaso IS NOT NULL" 2>/dev/null)"
+if [ "$marcas" != "1" ]; then
+    echo "FALLO  las dos partidas del traspaso no comparten marca"
+    exit 1
+fi
+echo "ok   el traspaso dejó dos partidas emparejadas, cada una en su moneda"
+
+fi
+
+# ── El campo de fecha, en su propia corrida ──────────────────────────────────
+#
+# Va aparte y no dentro de la secuencia larga por una razón mecánica: el arnés
+# corta a los doce segundos y la secuencia larga ya los rozaba. Añadirle cuarenta
+# teclas la dejaba a medias — y una prueba que se queda sin tiempo no falla, se
+# corta y acusa a lo que toque. Comprobado: la primera versión de esto acusaba al
+# campo de fecha de no aceptar devanagari cuando lo que pasaba es que el programa
+# nunca llegó a esa tecla.
+#
+# Abre una cuenta —lo que escribe su asiento de apertura— y teclea DOS fechas:
+# «2026-02-31», que son ocho dígitos bien colocados y NO es un día, y después la
+# misma en DEVANAGARI. Si lo guardado es 2025-07-04, las dos mitades funcionaron:
+# la inválida se rechazó (o estaría ella) y los dígitos índicos entraron (o no
+# habría fecha).
+#
+# EN: its own run, for a mechanical reason: the harness cuts off at twelve
+# seconds and the long sequence already grazed it. A test that runs out of time
+# does not fail — it stops half way and blames whatever it lands on. Verified:
+# the first version of this accused the date field of refusing Devanagari when
+# what happened is the program never reached that key.
+BS8=("$BORRAR" "$BORRAR" "$BORRAR" "$BORRAR" "$BORRAR" "$BORRAR" "$BORRAR" "$BORRAR")
+FECHA_KEYS=(c C a j a '\r' '\r' 9 9 '\r'
+            "${BS8[@]}" 2 0 2 6 0 2 3 1 '\r'
+            "${BS8[@]}" २ ० २ ५ ० ७ ० ४ '\r'
+            q)
+
+if ! command -v sqlite3 >/dev/null; then
+    echo "omitida  el campo de fecha (sin sqlite3 para mirar la base)"
+else
+    for motor in tw vm; do
+        sembrar
+        if [ "$motor" = vm ]; then ARGS=(run --vm); else ARGS=(run); fi
+        python3 "$HARNESS" zymbol "${ARGS[@]}" "$ROOT/zybank_tui.zy" -- "${FECHA_KEYS[@]}" \
+            > "fecha.$motor" 2>/dev/null
+        f_caja="$(sqlite3 zybank.db "SELECT m.fecha FROM movimientos m
+                                     JOIN cuentas c ON c.id = m.cuenta
+                                     WHERE c.nombre = 'Caja'" 2>/dev/null)"
+        if [ "$f_caja" = "2026-02-31" ]; then
+            echo "FALLO  el campo de fecha confirmó un 31 de febrero ($motor)"
+            exit 1
+        fi
+        if [ "$f_caja" != "2025-07-04" ]; then
+            echo "FALLO  el campo de fecha ($motor): la apertura de Caja quedó en [$f_caja]"
+            echo "       esperado 2025-07-04, tecleado en devanagari (२०२५०७०४)"
+            exit 1
+        fi
+    done
+    echo "ok   la fecha rechazó un 31 de febrero y tomó २०२५०७०४, en los dos motores"
+fi
 
 # ── El veredicto ─────────────────────────────────────────────────────────────
 #

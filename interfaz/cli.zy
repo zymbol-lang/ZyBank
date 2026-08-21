@@ -111,8 +111,8 @@
         // would be the workaround).
         puestas = 0
         @ c:sem::categorías() {
-            (clave, grupo, tipo) = c
-            (ok, _id) = al::crear_categoría(clave, grupo, tipo)
+            (clave, grupo, sentido) = c
+            (ok, _id) = al::crear_categoría(clave, grupo, sentido)
             ? ok { puestas = °puestas + 1 }
         }
         >> idi::texto("msg.creado") ": " puestas ¶
@@ -140,26 +140,31 @@
 
     _nueva(args) {
         ? args$# < 3 {
-            >> "nueva <nombre> <moneda> [saldo]" ¶
+            >> "nueva <nombre> <moneda> [apertura] [fecha]" ¶
             <~ 2
         }
         nombre = args[2]
         código = args[3]
         ? !mon::conocida(código) {
-            >> idi::texto("msg.monto_inválido") ": " código ¶
+            >> idi::texto("msg.importe_inválido") ": " código ¶
             <~ 2
         }
         m = mon::obtener(código)
-        inicial = 0
+        apertura = 0
         ? args$# >= 4 {
             (ok, v) = din::analizar(args[4], m)
             ? !ok {
-                >> idi::texto("msg.monto_inválido") ": " args[4] ¶
+                >> idi::texto("msg.importe_inválido") ": " args[4] ¶
                 <~ 2
             }
-            inicial = v
+            apertura = v
         }
-        (creada, id) = al::crear_cuenta(nombre, código, inicial)
+        // La fecha del asiento de apertura, opcional, igual que en
+        // `anotar`. Sin ella, hoy.
+        // EN: the opening entry's date, optional as in `anotar`.
+        fecha = al::hoy()
+        ? args$# >= 5 { fecha = args[5] }
+        (creada, id) = al::crear_cuenta(nombre, código, apertura, fecha)
         ? !creada {
             // `>> id` y no `>> "" id`: el segundo aborta cuando id
             // es un error blando (BUG-ZYB-003).
@@ -168,13 +173,13 @@
             >> id ¶
             <~ 1
         }
-        >> idi::texto("msg.creado") ": " nombre " (" código ") " din::formatear(inicial, m) ¶
+        >> idi::texto("msg.creado") ": " nombre " (" código ") " din::formatear(apertura, m) ¶
         <~ 0
     }
 
     _anotar(args) {
         ? args$# < 4 {
-            >> "anotar <cuenta> <categoría> <monto> [glosa] [fecha]" ¶
+            >> "anotar <cuenta> <categoría> <importe> [glosa] [fecha]" ¶
             <~ 2
         }
         cta = al::cuenta_por_nombre(args[2])
@@ -188,15 +193,48 @@
         cat_id = 0
         ? al::es_nulo(cat) {
             // Una categoría que no existe se CREA, con el grupo y
-            // el tipo deducidos de su propia clave. Obligar a
+            // el sentido deducidos de su propia clave. Obligar a
             // declararla antes sería obligar a interrumpir lo que
             // se estaba anotando.
+            //
+            // Los dos ejes salen de la misma clave y por caminos
+            // distintos: la NATURALEZA la da su prefijo —de dónde
+            // cuelga— y el SENTIDO se sigue de ella, salvo en un
+            // ajuste, que no cuelga de ingresos ni de gastos y
+            // lleva el sentido escrito en la propia clave.
+            //
+            // Se mira por contención y no por prefijo exacto, que
+            // es lo que hay: las claves son el convenio del propio
+            // programa, y una que dijera «gasto.ingresos_varios»
+            // sería una clave escrita para engañar a esto.
+            //
             // EN: an unknown category is CREATED, with group and
-            // type inferred from its own key. Demanding it be
-            // declared first would mean interrupting the entry.
-            tipo = "gasto"
-            ? clave_cat$? "ingreso" { tipo = "ingreso" }
-            (hecha, nid) = al::crear_categoría(clave_cat, tipo ".otros", tipo)
+            // sentido inferred from its own key by two different
+            // routes: the NATURE from its prefix — what it hangs
+            // off — and the SENTIDO from that, except for an
+            // adjustment, which hangs off neither income nor
+            // expense and carries its sentido in the key itself.
+            grupo_nuevo = "gasto.otros"
+            sentido = "cargo"
+            ? clave_cat$? "ingreso" {
+                grupo_nuevo = "ingreso.otros"
+                sentido = "abono"
+            }
+            ? clave_cat$? "ajuste" {
+                grupo_nuevo = "ajuste"
+                sentido = "cargo"
+                ? clave_cat$? "abono" { sentido = "abono" }
+            }
+            // Una apertura tampoco cuelga de ingresos ni de gastos, y
+            // como el ajuste lleva el sentido en la propia clave.
+            // EN: an opening hangs off neither either, and like an
+            // adjustment carries its sentido in the key.
+            ? clave_cat$? "apertura" {
+                grupo_nuevo = "apertura"
+                sentido = "cargo"
+                ? clave_cat$? "abono" { sentido = "abono" }
+            }
+            (hecha, nid) = al::crear_categoría(clave_cat, grupo_nuevo, sentido)
             ? !hecha {
                 >> nid ¶
                 <~ 1
@@ -207,21 +245,21 @@
             cat_id = cat.id
         }
 
-        (ok, monto) = din::analizar(args[4], m)
+        (ok, importe) = din::analizar(args[4], m)
         ? !ok {
-            >> idi::texto("msg.monto_inválido") ": " args[4] ¶
+            >> idi::texto("msg.importe_inválido") ": " args[4] ¶
             <~ 2
         }
-        // El signo lo pone el TIPO de la categoría, no quien
-        // teclea. Escribir «-» delante de un gasto es una fuente
-        // de errores y aquí no hace falta: un gasto es negativo
-        // porque es un gasto.
-        // EN: the SIGN comes from the category's type, not from
-        // what was typed — an expense is negative because it is an
-        // expense.
+        // El signo lo pone el SENTIDO de la categoría, no quien
+        // teclea. Escribir «-» delante de un cargo es una fuente
+        // de errores y aquí no hace falta: un cargo es negativo
+        // porque es un cargo.
+        // EN: the SIGN comes from the category's sentido, not from
+        // what was typed — a debit is negative because it is a
+        // debit.
         cat2 = al::categoría_por_clave(clave_cat)
-        ? cat2.tipo == "gasto" {
-            ? monto > 0 { monto = 0 - monto }
+        ? cat2.sentido == "cargo" {
+            ? importe > 0 { importe = 0 - importe }
         }
 
         glosa = ""
@@ -230,18 +268,18 @@
         ? args$# >= 6 { fecha = args[6] }
         _ { fecha = al::hoy() }
 
-        (anotado, err) = al::anotar(fecha, cta.id, cat_id, monto, glosa)
+        (anotado, err) = al::anotar(fecha, cta.id, cat_id, importe, glosa)
         ? !anotado {
             >> err ¶
             <~ 1
         }
-        >> idi::texto("msg.anotado") ": " din::formatear(monto, m) " " idi::categoría(clave_cat) ¶
+        >> idi::texto("msg.anotado") ": " din::formatear(importe, m) " " idi::categoría(clave_cat) ¶
         <~ 0
     }
 
     _traspasar(args) {
         ? args$# < 4 {
-            >> "traspasar <origen> <destino> <monto> [monto-destino] [glosa]" ¶
+            >> "traspasar <origen> <destino> <importe> [importe-destino] [glosa]" ¶
             <~ 2
         }
         o = al::cuenta_por_nombre(args[2])
@@ -260,12 +298,12 @@
         }
         mo = mon::obtener(o.moneda)
         md = mon::obtener(d.moneda)
-        (ok, monto_o) = din::analizar(args[4], mo)
+        (ok, importe_o) = din::analizar(args[4], mo)
         ? !ok {
-            >> idi::texto("msg.monto_inválido") ": " args[4] ¶
+            >> idi::texto("msg.importe_inválido") ": " args[4] ¶
             <~ 2
         }
-        monto_d = monto_o
+        importe_d = importe_o
         ? o.moneda <> d.moneda {
             // Sin tasa inventada. Si las monedas difieren hay que
             // decir cuánto llega, porque el programa no lo sabe y
@@ -279,26 +317,26 @@
             }
             (ok2, v2) = din::analizar(args[5], md)
             ? !ok2 {
-                >> idi::texto("msg.monto_inválido") ": " args[5] ¶
+                >> idi::texto("msg.importe_inválido") ": " args[5] ¶
                 <~ 2
             }
-            monto_d = v2
+            importe_d = v2
         }
         _? args$# >= 5 {
             (ok3, v3) = din::analizar(args[5], md)
-            ? ok3 { monto_d = v3 }
+            ? ok3 { importe_d = v3 }
         }
 
         glosa = ""
         ? args$# >= 6 { glosa = args[6] }
         fecha = al::hoy()
 
-        (hecho, marca) = al::traspasar(fecha, o.id, d.id, monto_o, monto_d, glosa)
+        (hecho, marca) = al::traspasar(fecha, o.id, d.id, importe_o, importe_d, glosa)
         ? !hecho {
             >> marca ¶
             <~ 1
         }
-        >> idi::texto("msg.traspasado") ": " din::formatear(monto_o, mo) " → " din::formatear(monto_d, md) ¶
+        >> idi::texto("msg.traspasado") ": " din::formatear(importe_o, mo) " → " din::formatear(importe_d, md) ¶
         <~ 0
     }
 
@@ -321,7 +359,7 @@
             <~ 0
         }
         enc = [idi::texto("campo.fecha"), idi::texto("campo.cuenta"),
-               idi::texto("campo.categoría"), idi::texto("campo.monto"),
+               idi::texto("campo.categoría"), idi::texto("campo.importe"),
                idi::texto("campo.glosa")]
         filas = []
         @ f:filas_bd {
@@ -334,7 +372,7 @@
             ? al::es_nulo(f.categoría) { nombre_cat = idi::texto("acción.traspasar") }
             _ { nombre_cat = idi::categoría(f.categoría) }
             filas = filas$+ [f.fecha, f.cuenta_nombre, nombre_cat,
-                             din::formatear(f.monto, m), f.glosa]
+                             din::formatear(f.importe, m), f.glosa]
         }
         @ l:tab::componer(enc, filas, ["izq", "izq", "izq", "der", "izq"]) {
             >> l ¶

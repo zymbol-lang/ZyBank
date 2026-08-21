@@ -26,21 +26,37 @@
 
     #> { categorías }
 
-    // (clave, grupo, tipo)
+    // (clave, grupo, sentido)
+    //
+    // El SENTIDO no es la naturaleza. La naturaleza —ingreso,
+    // gasto, ajuste— vive en el prefijo de la clave y en el grupo,
+    // y dice de qué es el movimiento. El sentido dice hacia dónde
+    // mueve el saldo de la cuenta: un ABONO lo aumenta (crédito,
+    // haber), un CARGO lo disminuye (débito, debe). Son dos ejes y
+    // no uno: un ajuste no es ingreso ni gasto, y sin embargo tiene
+    // que abonar o cargar como cualquier otro movimiento.
+    //
+    // EN: the SENTIDO is not the nature. The nature — income,
+    // expense, adjustment — lives in the key prefix and in the
+    // group and says what the movement is about; the sentido says
+    // which way it moves the balance: an ABONO raises it (credit),
+    // a CARGO lowers it (debit). Two axes, not one: an adjustment
+    // is neither income nor expense and still has to credit or
+    // debit like anything else.
     categorías() {
         <~ [
-            ("ingreso.sueldo",       "ingreso.trabajo",  "ingreso"),
-            ("ingreso.honorarios",   "ingreso.trabajo",  "ingreso"),
-            ("ingreso.intereses",    "ingreso.otros",    "ingreso"),
-            ("ingreso.regalo",       "ingreso.otros",    "ingreso"),
-            ("gasto.alimentación",   "gasto.hogar",      "gasto"),
-            ("gasto.vivienda",       "gasto.hogar",      "gasto"),
-            ("gasto.servicios",      "gasto.hogar",      "gasto"),
-            ("gasto.transporte",     "gasto.personal",   "gasto"),
-            ("gasto.salud",          "gasto.personal",   "gasto"),
-            ("gasto.educación",      "gasto.personal",   "gasto"),
-            ("gasto.ocio",           "gasto.personal",   "gasto"),
-            ("gasto.impuestos",      "gasto.deberes",    "gasto")
+            ("ingreso.sueldo",     "ingreso.trabajo",  "abono"),
+            ("ingreso.honorarios", "ingreso.trabajo",  "abono"),
+            ("ingreso.intereses",  "ingreso.otros",    "abono"),
+            ("ingreso.regalo",     "ingreso.otros",    "abono"),
+            ("gasto.alimentación", "gasto.hogar",      "cargo"),
+            ("gasto.vivienda",     "gasto.hogar",      "cargo"),
+            ("gasto.servicios",    "gasto.hogar",      "cargo"),
+            ("gasto.transporte",   "gasto.personal",   "cargo"),
+            ("gasto.salud",        "gasto.personal",   "cargo"),
+            ("gasto.educación",    "gasto.personal",   "cargo"),
+            ("gasto.ocio",         "gasto.personal",   "cargo"),
+            ("gasto.impuestos",    "gasto.deberes",    "cargo")
         ]
     }
 

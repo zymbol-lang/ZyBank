@@ -31,6 +31,32 @@ Ese solo requisito destapó el primer hallazgo: `#.N|…|` necesita una precisi�
 **literal**, así que un formateador cuya precisión llega en tiempo de ejecución
 no puede usarla en absoluto — y `#.2|10.5|` escribe `10.5`, no `10.50`.
 
+### Las palabras son las del oficio, no las del diccionario
+
+Escribir el programa en español no es traducirlo: es escribirlo en el español
+**de la contabilidad**. Una palabra corriente que ocupa el sitio de un término
+del oficio miente sobre lo que hace el código, y lo hace en el idioma que se
+supone que lo aclaraba.
+
+| Término | Es | No es |
+|---|---|---|
+| **Abono** | crédito, haber — sube el saldo | «ingreso»: eso es la naturaleza, no el efecto |
+| **Cargo** | débito, debe — baja el saldo | «descontar»: descontar es rebajar un precio, y no es lo contrario de abonar |
+| **Importe** | la cantidad de un movimiento | «monto», que es el término suelto |
+| **Glosa** | el texto que explica el movimiento | «nota», «descripción» |
+| **Asiento** | la anotación completa | una de sus mitades |
+| **Partida** | cada mitad de un asiento | un asiento suyo |
+| **Traspaso** | mover dinero entre cuentas propias | «transferencia», que es a un tercero |
+| **Apertura** | el asiento con el que empieza una cuenta | «saldo inicial», que suena a propiedad de la cuenta y no a hecho fechado |
+
+Y son **dos ejes, no uno**. La **naturaleza** —ingreso, gasto, ajuste— dice de
+qué es el movimiento y vive en la clave de la categoría y en su grupo. El
+**sentido** —abono o cargo— dice hacia dónde mueve el saldo y vive en su propia
+columna. Confundirlos es lo que hacía la columna `tipo`, que guardaba
+«ingreso»/«gasto» en el sitio que decide el signo: por eso un ajuste no cabía en
+ella —no es ingreso ni gasto— y había que colgarlo de uno de los dos fingiendo
+que lo era.
+
 ## Cómo se usa
 
 Necesita un binario `zymbol` con `std/db` (compilado desde fuente, o Windows) y
@@ -44,7 +70,7 @@ zymbol run zybank_tui.zy
 ```
 
 Es donde se opera el libro: dar de alta cuentas, anotar movimientos, corregirlos,
-borrarlos, y **abonar o descontar saldo**. Dos cosas existen solo aquí:
+borrarlos, y **abonar o cargar**. Dos cosas existen solo aquí:
 
 - **La validación ocurre mientras se teclea, y es numérica, no de texto.** El
   campo de importe no acepta una letra —no la escribe— y el punto decimal solo
@@ -53,6 +79,12 @@ borrarlos, y **abonar o descontar saldo**. Dos cosas existen solo aquí:
   No hay un estado inválido que corregir porque nunca llega a existir. Y se ve
   el importe formateado mientras se teclea: `1234` se lee `$1.234` en un campo
   CLP y `$12.34` en uno USD, con las mismas pulsaciones.
+
+  El campo de **fecha** sigue la misma regla: se teclean dígitos y los guiones
+  los pone el campo, así que «2026-08-2100» no se puede escribir. Y ENTER no
+  confirma un `2026-02-31` — ocho dígitos bien colocados siguen pudiendo no ser
+  un día. Un libro ordena por fecha y resume por periodo, así que una fecha que
+  no existe no desordena la pantalla: desordena el dinero.
 - **Un dígito no es «0».."9".** Un teclado hindi manda «२», uno bengalí «২», y
   los dos son el dos. El campo los acepta —trece escrituras: devanagari,
   bengalí, gurmukhi, gujarati, oriya, tamil, telugu, kannada, malayalam,
@@ -65,14 +97,53 @@ borrarlos, y **abonar o descontar saldo**. Dos cosas existen solo aquí:
   las etiquetas, los nombres de las categorías y la escritura de las cifras, sin
   recargar nada.
 
-Teclas: `jk` mover · `⏎` abrir/volver · `n` nuevo · `e` editar · `x` borrar ·
-`+` abonar · `-` descontar · `c` cuenta nueva · `r` resumen · `i` idioma · `q` salir.
-No hay flechas, y no es por gusto: [GAP-ZYB-011](HALLAZGOS.md#gap-zyb-011).
+Teclas: `↑↓` o `jk` mover · `→` o `⏎` abrir · `←` o `⏎` volver · `n` nuevo ·
+`e` editar · `x` borrar · `+` abonar · `-` cargar · `t` traspasar · `c` cuenta nueva ·
+`r` resumen · `i` idioma · `q` salir.
 
-**Abonar y descontar son movimientos, no un saldo que cambia.** El saldo inicial
-es lo que había al abrir la cuenta y no vuelve a moverse; un ajuste deja su
-línea, con su fecha y su glosa. Un libro cuyo saldo cambia sin dejar rastro no es
-un libro de cuentas.
+**Las flechas funcionan, y durante un tiempo no.** `<<|` entrega una flecha ya
+decodificada —`'↓'` es un carácter, no `ESC`+`[`+`B`— y un ESC suelto sigue
+llegando como ESC, así que aceptarlas no cuesta la tecla de cancelar. La
+aplicación las ignoraba porque una ficha decía que era imposible sin un
+temporizador; la ficha razonaba sobre lo que manda el terminal y no sobre lo que
+entrega el lenguaje: [GAP-ZYB-011](HALLAZGOS.md#gap-zyb-011), retirado. `jk` se
+queda al lado, para quien viene de `vi`.
+
+**Un traspaso es un asiento de dos partidas, no dos movimientos sueltos.** `t`
+mueve dinero de la cuenta que se está mirando a otra: sale un **cargo** en el
+origen y entra un **abono** en el destino, emparejados por una marca, sin
+categoría y en una sola transacción — media transferencia no es un estado que la
+base pueda tener. No se editan por separado (cambiar una mitad deja la otra
+mintiendo) y borrar una borra las dos. El resumen los excluye: mover dinero de
+una cuenta propia a otra no es un gasto ni un ingreso, y contarlo como tal
+inflaría las dos columnas a la vez.
+
+Si las cuentas están en monedas distintas, el programa **pide el importe que
+llega** en vez de inventarse una tasa: quien mueve 100 000 CLP a una cuenta en
+dólares sabe a cuánto se los cambiaron, y adivinarlo sería falsificar un asiento.
+
+**Ninguna cifra de dinero vive fuera del libro.** El saldo de una cuenta es la
+suma de sus movimientos y nada más — no hay columna de saldo que nadie pueda
+contradecir. Abrir una cuenta con un importe escribe su **asiento de apertura**:
+una línea con su fecha, su categoría «Apertura» y su importe, en la misma
+transacción que crea la cuenta. Media apertura —cuenta creada, línea no— no es un
+estado que la base pueda tener.
+
+Hubo una columna `saldo_inicial`, y era el único dinero del programa que ninguna
+línea explicaba. Se defendía diciendo que era «lo que había al abrir la cuenta»,
+pero eso es precisamente un asiento: tiene fecha y tiene contrapartida. Si un
+libro cuyo saldo **cambia** sin dejar rastro no es un libro de cuentas, uno cuyo
+saldo **empieza** sin dejar rastro tampoco.
+
+El asiento de apertura **no cuenta en el resumen**, por lo mismo que un traspaso:
+su contrapartida es el patrimonio, no una cuenta de resultado. Abrir una cuenta
+con veinte millones no es haber ganado veinte millones ese mes. Y por eso tampoco
+se ofrece en el selector al anotar — lo que el resumen excluye no puede estar en
+el selector, o sería una categoría invisible: el gasto se guarda, el saldo cambia
+y la línea no sale en ningún resumen. Los **ajustes** sí están, porque sí cuentan.
+
+**Abonar y cargar son movimientos, no un saldo que cambia.** Un ajuste deja su
+línea, con su fecha y su glosa.
 
 ### Por órdenes
 

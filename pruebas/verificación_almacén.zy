@@ -10,8 +10,8 @@
 // Lo que comprueba, por orden de lo que costaría más si se
 // rompiera:
 //
-// 1. El TRASPASO ES ATÓMICO. Son dos asientos que viven o mueren
-//    juntos, y media transferencia no es un estado que la base
+// 1. El TRASPASO ES ATÓMICO. Son dos partidas que viven o mueren
+//    juntas, y media transferencia no es un estado que la base
 //    pueda tener.
 // 2. Los saldos son por cuenta y por moneda, y nunca se suman
 //    entre monedas — «−100000 CLP + 10500 USD» no es dinero de
@@ -33,6 +33,7 @@
 // migrating twice leaves the same state as migrating once.
 // ============================================================
 
+<# std/db => bd
 <# ../núcleo/almacén => a
 <# ../núcleo/dinero => d
 <# ../núcleo/semilla => sem
@@ -73,8 +74,8 @@ igual(qué, dado, esperado) {
 sembrar() {
     puestas = 0
     @ c:sem::categorías() {
-        (clave, grupo, tipo) = c
-        (ok, _id) = a::crear_categoría(clave, grupo, tipo)
+        (clave, grupo, sentido) = c
+        (ok, _id) = a::crear_categoría(clave, grupo, sentido)
         ? ok { puestas = °puestas + 1 }
     }
     <~ puestas
@@ -98,24 +99,73 @@ _ {
     fallos = fallos + igual("primera siembra", sembrar(), 12)
     fallos = fallos + igual("segunda siembra no duplica", sembrar(), 0)
     fallos = fallos + igual("total de categorías", a::categorías("")$#, 12)
-    fallos = fallos + igual("solo gastos", a::categorías("gasto")$#, 8)
-    fallos = fallos + igual("solo ingresos", a::categorías("ingreso")$#, 4)
+    fallos = fallos + igual("solo cargos", a::categorías("cargo")$#, 8)
+    fallos = fallos + igual("solo abonos", a::categorías("abono")$#, 4)
 
     >> "== cuentas en dos monedas con exponentes distintos ==" ¶
-    (c1ok, c1) = a::crear_cuenta("Corriente", "CLP", 500000)
-    (c2ok, c2) = a::crear_cuenta("Ahorro", "USD", 120050)
+    (c1ok, c1) = a::crear_cuenta("Corriente", "CLP", 500000, "2026-01-01")
+    (c2ok, c2) = a::crear_cuenta("Ahorro", "USD", 120050, "2026-01-01")
     fallos = fallos + igual("cuenta CLP creada", c1ok, #1)
     fallos = fallos + igual("cuenta USD creada", c2ok, #1)
-    fallos = fallos + igual("nombre repetido se rechaza", (a::crear_cuenta("Corriente", "CLP", 0))[1], #0)
+    fallos = fallos + igual("nombre repetido se rechaza", (a::crear_cuenta("Corriente", "CLP", 0, "2026-01-01"))[1], #0)
     fallos = fallos + igual("saldo inicial CLP", d::formatear(a::saldo(c1), m::obtener("CLP")), "$500.000")
     fallos = fallos + igual("saldo inicial USD", d::formatear(a::saldo(c2), m::obtener("USD")), "$1,200.50")
+
+    // El saldo de apertura NO es una propiedad de la cuenta: es un
+    // asiento, con su fecha, su categoría y su línea en el libro.
+    // Si esto se rompe, el saldo vuelve a ser una cifra que ninguna
+    // línea explica.
+    // EN: the opening balance is NOT a property of the account: it
+    // is an entry, with its date, its category and its line.
+    >> "== abrir una cuenta escribe su asiento de apertura ==" ¶
+    ap = (a::movimientos(c1, 1))[1]
+    fallos = fallos + igual("hay una línea", a::movimientos(c1, 9)$#, 1)
+    fallos = fallos + igual("por el importe de apertura", ap.importe, 500000)
+    fallos = fallos + igual("con la fecha que se dio", ap.fecha, "2026-01-01")
+    fallos = fallos + igual("y su categoría", ap.categoría, "apertura.abono")
+    fallos = fallos + igual("que cuelga de su propio grupo",
+          (a::categoría_por_clave("apertura.abono")).grupo, "apertura")
+    fallos = fallos + igual("y abona", (a::categoría_por_clave("apertura.abono")).sentido, "abono")
+
+    // Abrir en descubierto es legítimo —una tarjeta de crédito se
+    // abre debiendo— y entonces la apertura CARGA.
+    // EN: opening in the red is legitimate — a credit card opens
+    // owing — and then the opening DEBITS.
+    (c3ok, c3) = a::crear_cuenta("Tarjeta", "CLP", 0 - 80000, "2026-01-01")
+    fallos = fallos + igual("cuenta en descubierto creada", c3ok, #1)
+    fallos = fallos + igual("su saldo es negativo", a::saldo(c3), 0 - 80000)
+    fallos = fallos + igual("y su apertura carga",
+          ((a::movimientos(c3, 1))[1]).categoría, "apertura.cargo")
+
+    // Sin importe no hay asiento: una cuenta a cero no necesita que
+    // nadie explique nada.
+    // EN: no amount, no entry — an account at zero needs no line.
+    (c4ok, c4) = a::crear_cuenta("Vacía", "CLP", 0, "2026-01-01")
+    fallos = fallos + igual("cuenta a cero creada", c4ok, #1)
+    fallos = fallos + igual("sin asiento de apertura", a::movimientos(c4, 9)$#, 0)
+    fallos = fallos + igual("y saldo cero", a::saldo(c4), 0)
+
+    // La apertura NO se le ofrece a quien está anotando. La regla es
+    // exacta: lo que el resumen excluye no puede estar en el
+    // selector, o es una categoría invisible — el gasto se guarda,
+    // el saldo cambia y la línea no sale en ningún resumen.
+    // EN: an opening is NOT offered to someone recording. What the
+    // summary excludes must not be in the picker, or it is an
+    // invisible category.
+    fallos = fallos + igual("la apertura existe", a::categorías("")$#, 14)
+    fallos = fallos + igual("pero no se ofrece al anotar", a::categorías_anotables()$#, 12)
+    hay_apertura = #0
+    @ c:a::categorías_anotables() {
+        ? c.grupo == "apertura" { °hay_apertura = #1 }
+    }
+    fallos = fallos + igual("ninguna es de apertura", hay_apertura, #0)
 
     >> "== una comilla es un carácter, no una inyección ==" ¶
     alim = a::categoría_por_clave("gasto.alimentación")
     a::anotar("2026-08-01", c1, alim.id, 0 - 25990, "Feria O'Higgins")
     f = a::movimientos(c1, 1)
     fallos = fallos + igual("la glosa llegó entera", f[1].glosa, "Feria O'Higgins")
-    fallos = fallos + igual("la tabla sigue en pie", a::categorías("")$#, 12)
+    fallos = fallos + igual("la tabla sigue en pie", a::categorías("")$#, 14)
 
     >> "== el saldo sigue a los movimientos ==" ¶
     suel = a::categoría_por_clave("ingreso.sueldo")
@@ -126,24 +176,24 @@ _ {
     >> "== el traspaso es atómico y respeta las dos monedas ==" ¶
     (hecho, _marca) = a::traspasar("2026-08-06", c1, c2, 100000, 10500, "Cambio")
     fallos = fallos + igual("traspaso hecho", hecho, #1)
-    fallos = fallos + igual("origen descontado",
+    fallos = fallos + igual("origen cargado",
           d::formatear(a::saldo(c1), m::obtener("CLP")), "$1.574.010")
     fallos = fallos + igual("destino aumentado en SU moneda",
           d::formatear(a::saldo(c2), m::obtener("USD")), "$1,305.50")
 
-    >> "== los dos asientos existen y comparten marca ==" ¶
+    >> "== las dos partidas existen y comparten marca ==" ¶
     todos = a::movimientos(0, 50)
     con_marca = 0
     @ mv:todos {
         ? !a::es_nulo(mv.traspaso) { con_marca = °con_marca + 1 }
     }
-    fallos = fallos + igual("dos asientos marcados", con_marca, 2)
+    fallos = fallos + igual("dos partidas marcadas", con_marca, 2)
 
     >> "== a la misma cuenta no se traspasa ==" ¶
     (mal, razón) = a::traspasar("2026-08-07", c1, c1, 1000, 1000, "")
     fallos = fallos + igual("rechazado", mal, #0)
     fallos = fallos + igual("y dice por qué", razón, "misma_cuenta")
-    fallos = fallos + igual("sin asientos nuevos", a::movimientos(0, 50)$#, 4)
+    fallos = fallos + igual("sin partidas nuevas", a::movimientos(0, 50)$#, 7)
 
     >> "== el resumen no suma entre monedas ni cuenta traspasos ==" ¶
     r = a::resumen_por_categoría(0, "2026-08-01", "2026-08-31")
@@ -171,25 +221,42 @@ _ {
     fallos = fallos + igual("es_nulo SÍ la detecta", a::es_nulo(fantasma), #1)
     fallos = fallos + igual("y no confunde una que sí existe", a::es_nulo(a::cuenta_por_nombre("Corriente")), #0)
 
-    >> "== abonar y descontar son movimientos, no un saldo que cambia ==" ¶
+    >> "== abonar y cargar son movimientos, no un saldo que cambia ==" ¶
     antes = a::saldo(c1)
     (ok_ab, _e1) = a::ajustar("2026-08-10", c1, 50000, "Aguinaldo")
     fallos = fallos + igual("abonado", ok_ab, #1)
     fallos = fallos + igual("el saldo sube", a::saldo(c1), antes + 50000)
-    (ok_de, _e2) = a::ajustar("2026-08-11", c1, 0 - 20000, "Multa")
-    fallos = fallos + igual("descontado", ok_de, #1)
+    (ok_ca, _e2) = a::ajustar("2026-08-11", c1, 0 - 20000, "Multa")
+    fallos = fallos + igual("cargado", ok_ca, #1)
     fallos = fallos + igual("el saldo baja", a::saldo(c1), antes + 30000)
-    // Lo que distingue un ajuste de tocar el saldo: queda una línea.
-    // EN: what separates an adjustment from editing the balance: a line remains.
-    fallos = fallos + igual("el saldo inicial NO se tocó", (a::cuenta(c1)).saldo_inicial, 500000)
-    fallos = fallos + igual("hay categoría de ajuste", a::es_nulo(a::categoría_por_clave("ingreso.ajuste")), #0)
+    // Lo que distingue un ajuste de tocar el saldo: queda una línea,
+    // y la de apertura sigue donde estaba. Ya no hay `saldo_inicial`
+    // que tocar —el saldo es la suma de los movimientos— así que lo
+    // que se comprueba es que el ajuste no reescribió la apertura.
+    // EN: what separates an adjustment from editing the balance: a
+    // line remains, and the opening one is where it was. There is no
+    // `saldo_inicial` left to touch.
+    apertura_c1 = a::movimiento(ap.id)
+    fallos = fallos + igual("la apertura sigue intacta", apertura_c1.importe, 500000)
+    fallos = fallos + igual("el ajuste que abona tiene categoría propia",
+          a::es_nulo(a::categoría_por_clave("ajuste.abono")), #0)
+    fallos = fallos + igual("y el que carga también",
+          a::es_nulo(a::categoría_por_clave("ajuste.cargo")), #0)
+    // Un ajuste no cuelga de ingresos ni de gastos: tiene grupo propio.
+    // EN: an adjustment hangs off neither income nor expense.
+    fallos = fallos + igual("y no cuelga de ingresos ni gastos",
+          (a::categoría_por_clave("ajuste.abono")).grupo, "ajuste")
+    fallos = fallos + igual("el sentido del ajuste que abona",
+          (a::categoría_por_clave("ajuste.abono")).sentido, "abono")
+    fallos = fallos + igual("el sentido del ajuste que carga",
+          (a::categoría_por_clave("ajuste.cargo")).sentido, "cargo")
 
     >> "== corregir un asiento ==" ¶
     último = (a::movimientos(c1, 1))[1]
     (ok_up, _e3) = a::actualizar(último.id, último.fecha, 0, 0 - 33000, "Multa corregida")
     fallos = fallos + igual("actualizado", ok_up, #1)
     revisado = a::movimiento(último.id)
-    fallos = fallos + igual("el monto cambió", revisado.monto, 0 - 33000)
+    fallos = fallos + igual("el importe cambió", revisado.importe, 0 - 33000)
     fallos = fallos + igual("la glosa cambió", revisado.glosa, "Multa corregida")
 
     >> "== un traspaso no se corrige a medias ==" ¶
@@ -211,12 +278,12 @@ _ {
     fallos = fallos + igual("se rechaza editar media transferencia", ok_mal, #0)
     fallos = fallos + igual("y dice por qué", razón2, "traspaso")
 
-    >> "== borrar un traspaso se lleva sus DOS asientos ==" ¶
+    >> "== borrar un traspaso se lleva sus DOS partidas ==" ¶
     antes_n = a::movimientos(0, 99)$#
     (ok_del, qué) = a::borrar(pata.id)
     fallos = fallos + igual("borrado", ok_del, #1)
     fallos = fallos + igual("se fue entero", qué, "traspaso_completo")
-    fallos = fallos + igual("dos asientos menos", a::movimientos(0, 99)$#, antes_n - 2)
+    fallos = fallos + igual("dos partidas menos", a::movimientos(0, 99)$#, antes_n - 2)
 
     >> "== borrar un movimiento corriente se lleva uno ==" ¶
     antes_n2 = a::movimientos(0, 99)$#
@@ -228,6 +295,121 @@ _ {
 
     a::cerrar()
     <\ "rm -f zybank_prueba.db" \>
+
+    // ── Una base escrita por la versión anterior ──────────────
+    //
+    // Es el único camino de `migrar` que el resto de la suite no
+    // pisa nunca: cada prueba arranca sobre una base vacía, y
+    // sobre una base vacía los renombres no tienen nada que
+    // renombrar. `CREATE TABLE IF NOT EXISTS` deja intacta una
+    // tabla que ya existe, así que una base con los nombres viejos
+    // —`monto` en movimientos, `tipo` en categorías— sobrevive a
+    // la creación tal cual y ninguna consulta del módulo la
+    // encuentra. Si esto no se prueba, lo que se rompe no es una
+    // función: son los datos de quien ya usaba el programa.
+    //
+    // El esquema viejo se escribe a mano y con SQL crudo porque
+    // ninguna función de este módulo sabe ya escribirlo.
+    //
+    // EN: the one path through `migrar` the rest of the suite never
+    // walks — every other check starts on an empty database, where
+    // a rename has nothing to rename. What breaks without this test
+    // is not a function: it is the data of whoever was already
+    // using the program.
+    >> "== una base escrita por la versión anterior se pone al día ==" ¶
+    <\ "rm -f zybank_viejo.db" \>
+    (ab2, _err2) = a::abrir("zybank_viejo.db")
+    ? !ab2 {
+        >> "FALLO no se pudo abrir la base vieja" ¶
+        fallos = fallos + 1
+    }
+    _ {
+        cv = a::conexión()
+        bd::exec(cv, "CREATE TABLE cuentas(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            moneda TEXT NOT NULL,
+            saldo_inicial INTEGER NOT NULL DEFAULT 0,
+            activa INTEGER NOT NULL DEFAULT 1)")
+        bd::exec(cv, "CREATE TABLE categorías(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clave TEXT NOT NULL UNIQUE,
+            grupo TEXT NOT NULL,
+            tipo TEXT NOT NULL)")
+        bd::exec(cv, "CREATE TABLE movimientos(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT NOT NULL,
+            cuenta INTEGER NOT NULL,
+            categoría INTEGER,
+            monto INTEGER NOT NULL,
+            glosa TEXT NOT NULL DEFAULT '',
+            traspaso INTEGER)")
+        bd::exec(cv, "INSERT INTO cuentas(nombre, moneda, saldo_inicial)
+                      VALUES('Vieja', 'CLP', 100000)")
+        bd::exec(cv, "INSERT INTO categorías(clave, grupo, tipo) VALUES
+                      ('gasto.ocio',     'gasto.personal',  'gasto'),
+                      ('ingreso.sueldo', 'ingreso.trabajo', 'ingreso'),
+                      ('ingreso.ajuste', 'ingreso.otros',   'ingreso'),
+                      ('gasto.ajuste',   'gasto.otros',     'gasto')")
+        vieja = a::cuenta_por_nombre("Vieja")
+        bd::exec(cv, "INSERT INTO movimientos(fecha, cuenta, categoría, monto, glosa)
+                      VALUES('2026-08-01', ?, 1, -25000, 'Cine')", (vieja.id,))
+
+        // Dos veces, por lo mismo que arriba: un renombre que se
+        // aplica dos veces es un renombre que rompe la base la
+        // segunda vez que alguien abre el programa.
+        // EN: twice, for the same reason as above.
+        a::migrar()
+        a::migrar()
+
+        fallos = fallos + igual("el saldo sobrevivió al renombre", a::saldo(vieja.id), 75000)
+        // El saldo de apertura que estaba en la columna ahora es una
+        // LÍNEA, y con la fecha del movimiento más antiguo de la
+        // cuenta —no la de hoy—, o quedaría ordenada después de lo
+        // que precede y fuera de todo resumen anterior.
+        // EN: the opening balance that lived in the column is now a
+        // LINE, dated by the account's earliest movement, not today.
+        movs_v = a::movimientos(vieja.id, 9)
+        fallos = fallos + igual("hay dos líneas: la apertura y la que ya estaba", movs_v$#, 2)
+        apertura_v = a::categoría_por_clave("apertura.abono")
+        fallos = fallos + igual("la apertura existe como categoría", a::es_nulo(apertura_v), #0)
+        vieja_ap = #0
+        vieja_cine = #0
+        @ mv:movs_v {
+            ? mv.categoría == "apertura.abono" { vieja_ap = °mv }
+            ? mv.categoría == "gasto.ocio"     { vieja_cine = °mv }
+        }
+        fallos = fallos + igual("la apertura vale lo que valía la columna", vieja_ap.importe, 100000)
+        fallos = fallos + igual("y se fecha con el movimiento más antiguo", vieja_ap.fecha, "2026-08-01")
+        fallos = fallos + igual("el importe viejo se lee por su nombre nuevo",
+              vieja_cine.importe, 0 - 25000)
+        fallos = fallos + igual("la glosa no se movió", vieja_cine.glosa, "Cine")
+
+        // Y la columna ya no está. Se pregunta por SQL crudo porque
+        // ninguna función del módulo la nombra ya.
+        // EN: and the column is gone — asked in raw SQL because no
+        // function of the module names it any more.
+        resto = bd::query(cv, "SELECT saldo_inicial FROM cuentas LIMIT 1")
+        fallos = fallos + igual("la columna saldo_inicial desapareció", resto$!, #1)
+        fallos = fallos + igual("un gasto pasó a ser un cargo",
+              (a::categoría_por_clave("gasto.ocio")).sentido, "cargo")
+        fallos = fallos + igual("un ingreso pasó a ser un abono",
+              (a::categoría_por_clave("ingreso.sueldo")).sentido, "abono")
+        fallos = fallos + igual("el ajuste que abonaba salió de ingresos",
+              (a::categoría_por_clave("ajuste.abono")).grupo, "ajuste")
+        fallos = fallos + igual("y conserva su sentido",
+              (a::categoría_por_clave("ajuste.abono")).sentido, "abono")
+        fallos = fallos + igual("el ajuste que cargaba salió de gastos",
+              (a::categoría_por_clave("ajuste.cargo")).grupo, "ajuste")
+        fallos = fallos + igual("la clave vieja ya no existe",
+              a::es_nulo(a::categoría_por_clave("ingreso.ajuste")), #1)
+        fallos = fallos + igual("ninguna categoría se perdió", a::categorías("")$#, 6)
+        fallos = fallos + igual("tres abonan, con la de apertura", a::categorías("abono")$#, 3)
+        fallos = fallos + igual("tres cargan, con la de apertura", a::categorías("cargo")$#, 3)
+
+        a::cerrar()
+    }
+    <\ "rm -f zybank_viejo.db" \>
 }
 
 >> "" ¶
