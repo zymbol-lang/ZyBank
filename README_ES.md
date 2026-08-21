@@ -5,7 +5,7 @@ idiomas, sobre SQLite.
 
 Es un **proyecto LDV** (`interpreter/LDV.md`): una aplicación construida para
 averiguar qué no sabe decir todavía el lenguaje. El programa es el instrumento;
-el producto son los hallazgos. Hay veinticuatro en [HALLAZGOS.md](HALLAZGOS.md), entre
+el producto son los hallazgos. Hay veinticinco en [HALLAZGOS.md](HALLAZGOS.md), entre
 ellos **dos divergencias de comportamiento entre motores** —cada uno rompe una
 forma distinta de pasar una función entre módulos— y una tercera de
 diagnóstico, en un lenguaje cuyo gate declara cero divergencias sobre 616
@@ -46,13 +46,21 @@ zymbol run zybank_tui.zy
 Es donde se opera el libro: dar de alta cuentas, anotar movimientos, corregirlos,
 borrarlos, y **abonar o descontar saldo**. Dos cosas existen solo aquí:
 
-- **La validación ocurre mientras se teclea.** El campo de importe no acepta una
-  letra —no la escribe— y el punto decimal solo entra si la moneda tiene
-  decimales: en pesos chilenos la tecla del punto no hace nada, en dólares admite
-  dos dígitos detrás y en dinares kuwaitíes tres. No hay un estado inválido que
-  corregir porque nunca llega a existir. Y mientras se teclea se ve el importe
-  formateado en su moneda: `1234` se lee `$1.234` en un campo CLP y `$12.34` en
-  uno USD, con las mismas pulsaciones.
+- **La validación ocurre mientras se teclea, y es numérica, no de texto.** El
+  campo de importe no acepta una letra —no la escribe— y el punto decimal solo
+  entra si la moneda tiene decimales: en pesos chilenos la tecla del punto no
+  hace nada, en dólares admite dos dígitos detrás y en dinares kuwaitíes tres.
+  No hay un estado inválido que corregir porque nunca llega a existir. Y se ve
+  el importe formateado mientras se teclea: `1234` se lee `$1.234` en un campo
+  CLP y `$12.34` en uno USD, con las mismas pulsaciones.
+- **Un dígito no es «0».."9".** Un teclado hindi manda «२», uno bengalí «২», y
+  los dos son el dos. El campo los acepta —trece escrituras: devanagari,
+  bengalí, gurmukhi, gujarati, oriya, tamil, telugu, kannada, malayalam,
+  tailandés, árabe, persa y ASCII— y guarda el **valor**, no la tecla, así que
+  la misma cuenta admite que hoy se teclee en devanagari y mañana en ASCII. Lo
+  que se pinta sigue a la escritura del idioma elegido. Aceptar solo ASCII sería
+  localizar la salida y dejar la entrada sin localizar, que es peor que no
+  localizar nada: le enseña al usuario una escritura que luego le rechaza.
 - **El idioma cambia en vivo.** La tecla `i` rota el idioma y con él se mueven
   las etiquetas, los nombres de las categorías y la escritura de las cifras, sin
   recargar nada.

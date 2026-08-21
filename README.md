@@ -5,7 +5,7 @@ over SQLite.
 
 It is an **LDV project** (`interpreter/LDV.md`): an application built to find
 out what the language cannot yet say. The program is the instrument; the
-finding is the product. Twenty-four of them are in
+finding is the product. Twenty-five of them are in
 [HALLAZGOS.md](HALLAZGOS.md) — including **two engine divergences in behaviour**
 (each engine breaks a different way of passing a function between modules) and a
 third in diagnostics, in a language whose gate reports zero divergences over 616
@@ -45,12 +45,17 @@ Where the ledger is actually operated: opening accounts, recording movements,
 correcting and deleting them, and **crediting or debiting a balance**. Two things
 exist only here:
 
-- **Validation happens while typing.** The amount field does not accept a letter
-  — it does not type it — and the decimal point only enters if the currency has
-  decimals: in Chilean pesos the point key does nothing, in dollars it takes two
-  digits after it, in Kuwaiti dinars three. There is no invalid state to correct
-  because none is ever reached. The amount is shown formatted as it is typed:
-  `1234` reads `$1.234` in a CLP field and `$12.34` in a USD one, same keystrokes.
+- **Validation happens while typing, and it is numeric, not textual.** The
+  amount field does not accept a letter — it does not type it — and the decimal
+  point only enters if the currency has decimals: in Chilean pesos the point key
+  does nothing, in dollars it takes two digits, in Kuwaiti dinars three. No
+  invalid state is ever reached. The amount is shown formatted as it is typed.
+- **A digit is not "0".."9".** A Hindi keyboard sends «२», a Bengali one «২», and
+  both are two. The field takes them — thirteen scripts — and stores the
+  **value**, not the key, so one account accepts Devanagari today and ASCII
+  tomorrow. What is painted follows the chosen locale's script. Accepting only
+  ASCII would localise the output and leave the input unlocalised, which is worse
+  than localising nothing: it shows the user a script it then refuses.
 - **The locale changes live**, digits included, with nothing reloaded.
 
 Keys: `jk` move · `⏎` open/back · `n` new · `e` edit · `x` delete · `+` credit ·

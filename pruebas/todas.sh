@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# pruebas/todas.sh — las cinco suites de ZyBank, en los dos motores.
+# pruebas/todas.sh — las seis suites de ZyBank, en los dos motores.
 #
-# Cuatro son Zymbol puro y las juzga `zyq expect` contra su golden; esta es la
-# forma corta para ejecutarlas a mano. La quinta es el TUI, que necesita un pty
+# Cinco son Zymbol puro y las juzga `zyq expect` contra su golden; esta es la
+# forma corta para ejecutarlas a mano. La sexta es el TUI, que necesita un pty
 # y por eso es un guion.
 #
 # El motor del navegador NO participa: `std/db` no existe en él, y no tiene ni
 # terminal ni sistema de archivos. Pedirle esto sería contar divergencias que
 # solo dicen que un navegador no es una consola.
 #
-# EN: pruebas/todas.sh — ZyBank's five suites on both engines. Four are pure
+# EN: pruebas/todas.sh — ZyBank's six suites on both engines. Five are pure
 # Zymbol judged by `zyq expect` against their goldens; this is the short form
-# for running them by hand. The fifth is the TUI, which needs a pty. The browser
+# for running them by hand. The sixth is the TUI, which needs a pty. The browser
 # engine does NOT take part: `std/db` does not exist there, and it has neither a
 # terminal nor a filesystem.
 #
@@ -35,7 +35,7 @@ cd "$ROOT" || exit 2
 command -v zymbol >/dev/null || { echo "sin binario zymbol" >&2; exit 2; }
 
 fallos=0
-for suite in dinero idioma tabla almacén; do
+for suite in dinero dígitos idioma tabla almacén; do
     for motor in "" "--vm"; do
         nombre="${motor:---tw}"
         salida="$(zymbol run $motor "pruebas/verificación_$suite.zy" 2>&1)"

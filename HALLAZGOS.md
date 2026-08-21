@@ -33,7 +33,7 @@ científico, un auditor de código y dos juegos de tablero. Ninguno tenía:
 | **datos que sobreviven al idioma** | lo guardado son claves; los nombres se traducen al mostrarse, y una base creada en japonés se lee en español |
 | **configuración con precedencia** | archivo JSON sobre lo recordado en la base |
 
-De los veinticuatro hallazgos —8 BUG, 11 GAP, 3 ERROR, 2 IDEA— la mitad larga sale
+De los veinticinco hallazgos —8 BUG, 12 GAP, 3 ERROR, 2 IDEA— la mitad larga sale
 de esas intersecciones y no de una característica aislada, que es el argumento
 de `LDV.md` § 4 en concreto. Los dos peores lo dejan claro: pasar una función
 entre módulos rompe en el tree-walker de una manera
@@ -52,6 +52,13 @@ teclado pierde el modificador Control y colapsa dos teclas en una
 de borrar produce ([GAP-ZYB-010](#gap-zyb-010)), las flechas no se pueden usar
 sin perder ESC ([GAP-ZYB-011](#gap-zyb-011)), y el tree-walker repinta un estado
 que ya se había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
+
+Y una sexta, que es la que mejor resume para qué sirve escribir aplicaciones en
+lugar de casos de prueba: el lenguaje **escribe** cifras en 69 escrituras y no
+sabe **leer** ninguna ([GAP-ZYB-012](#gap-zyb-012)). Ningún corpus lo iba a
+descubrir, porque un caso de prueba no tiene teclado. Hizo falta que la
+aplicación imprimiera «$१२,३४५.०७» y luego le rechazara al usuario el «१» que
+tecleaba.
 
 ---
 
@@ -78,6 +85,7 @@ que ya se había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
 | [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es | abierto |
 | [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | no hay forma de escribir un carácter de control: hay que salir al intérprete de órdenes | abierto |
 | [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | las flechas del teclado no se pueden usar sin perder la tecla ESC | abierto |
+| [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | no hay forma de preguntar si un carácter es un **dígito**, ni cuánto vale — el lenguaje escribe 69 escrituras y no sabe leer ninguna | abierto |
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico | abierto |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | abierto |
@@ -877,6 +885,62 @@ no hay temporizador que consultar.
 en el pie de cada pantalla. Es la convención de `vi` y no molesta a quien la
 conoce, pero es una elección forzada, no de diseño: una aplicación de escritorio
 no puede pedirle a alguien que aprenda `vi` para bajar por una lista.
+
+---
+
+## GAP-ZYB-012
+
+**El lenguaje sabe ESCRIBIR cifras en 69 escrituras y no sabe LEER ninguna. No hay forma de preguntar si un carácter es un dígito, ni cuánto vale.**
+
+Zymbol presume, con razón, de que un programa puede imprimir sus números en
+devanagari, bengalí o tailandés con un mode-switch. Lo que no puede es
+recibirlos.
+
+```zymbol
+k = '७'            // siete devanagari, lo que manda un teclado InScript
+>> ###k ¶          // Runtime error: ### requires a numeric value, got Char
+>> #|k| ¶          // «७» — devuelve el carácter como texto, no su valor
+```
+
+No hay `es_dígito`, no hay conversión a punto de código, y `#|…|` sobre una
+cadena de dígitos no ASCII tampoco la interpreta. Sin punto de código no hay
+aritmética con la que deducir nada: la única salida es **una tabla por
+escritura**, buscar el carácter dentro y usar su posición como valor. Eso es
+`pantalla/teclas.zy`: trece tablas escritas a mano.
+
+**Por qué esto importa más aquí que en otro sitio.** La asimetría es exactamente
+al revés de lo que conviene. Un programa puede *enseñar* «$१२,३४५.०७» a alguien
+—esta aplicación lo hace— y luego **rechazarle** el `१` que teclee. Localizar la
+salida y dejar la entrada en ASCII es peor que no localizar nada, porque le
+muestra al usuario una escritura que después no le acepta.
+
+Y no es una hipótesis sobre teclados exóticos: una distribución InScript, que es
+la estándar para las lenguas índicas, manda U+0966–U+096F. El teclado bengalí
+manda U+09E6–U+09EF.
+
+**Lo que costó, y era un fallo propio.** La primera versión de este campo
+comprobaba `t == '0' || t == '1' || …` y llevaba escrito el comentario *«el modo
+numeral cambia cómo se escriben los números, no cómo se teclean: un teclado manda
+'5' aunque la pantalla muestre «५»»*. Es falso, y era una suposición disfrazada
+de razón. Un programa que se anuncia como escribible en cualquier lengua no puede
+dar por hecho el teclado de una.
+
+**Rodeo, y su coste.** Trece tablas de diez caracteres cada una — las escrituras
+con teclado propio de uso real. Con dos consecuencias que no son gratis:
+
+- **Añadir una escritura es editar el programa**, cuando el lenguaje ya conoce
+  las 69. Un usuario con teclado *lao* o *birmano* no puede teclear su importe.
+- **Es una tabla que nadie del equipo lee de un vistazo**, o sea el sitio ideal
+  para que se cuele un carácter equivocado y no lo note nadie nunca. Por eso
+  existe `pruebas/verificación_dígitos.zy`: le pide al lenguaje que escriba los
+  diez dígitos de cada escritura —eso sí sabe— y los compara con la tabla. Trece
+  de trece coinciden hoy. Sin esa suite, un carácter mal copiado solo aparecería
+  el día que alguien con ese teclado tecleara justo ese dígito.
+
+**Lo que faltaría.** Un predicado de dígito con su valor, coherente con las 69
+escrituras que el lenguaje ya reconoce para escribir — la vuelta del
+mode-switch. Con `#|…|` aceptando cifras no ASCII bastaría para el caso de este
+programa.
 
 ---
 

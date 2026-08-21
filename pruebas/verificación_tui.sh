@@ -66,10 +66,12 @@ sembrar
 #
 #   ⏎              abre Corriente (CLP)
 #   n ⏎            nuevo movimiento, primera categoría de la lista
-#   1 a 2 . 3      TECLEA UN IMPORTE CON BASURA DENTRO. En una moneda sin
-#                  decimales no deben entrar ni la 'a' ni el '.', así que el
-#                  campo tiene que quedar en "123". Que no entren es lo que
-#                  distingue validar al teclear de corregir después.
+#   1 a २ . ৩      TECLEA UN IMPORTE CON BASURA Y CON DOS ESCRITURAS. El '1' es
+#                  ASCII, el '२' devanagari y el '৩' bengalí: los tres son
+#                  dígitos y los tres tienen que entrar, porque un teclado
+#                  hindi manda U+0966 y no U+0030. La 'a' y el '.' no, porque
+#                  una no es un dígito y el otro no cabe en una moneda sin
+#                  decimales. El campo tiene que quedar en "123".
 #   ⏎ P a n ⏎      confirma importe y glosa
 #   + 5 0 0 ⏎ A ⏎  abona saldo
 #   - 2 0 0 ⏎ B ⏎  descuenta saldo
@@ -79,9 +81,10 @@ sembrar
 #   q              sale
 #
 # EN: the sequence exercises the application, not just the drawing, and stays on
-# the CLP account — exponent 0 — on purpose: neither the 'a' nor the '.' may
-# enter, so the field must read "123".
-KEYS=('\r' n '\r' 1 a 2 . 3 '\r' P a n '\r'
+# the CLP account — exponent 0 — on purpose. It types one ASCII, one Devanagari
+# and one Bengali digit: all three must enter, since a Hindi keyboard sends
+# U+0966, not U+0030. The 'a' and the '.' must not. The field must read "123".
+KEYS=('\r' n '\r' 1 a २ . ৩ '\r' P a n '\r'
       + 5 0 0 '\r' A '\r'
       - 2 0 0 '\r' B '\r'
       e 9 '\r' C '\r'
@@ -104,7 +107,11 @@ if grep -aq '12\.3' salida.tw || grep -aq '1a' salida.tw; then
     echo "FALLO  el campo de importe aceptó lo que no debía en una moneda sin decimales"
     exit 1
 fi
-echo "ok   el campo rechazó la letra y el punto decimal en CLP"
+if ! grep -aq -- '-\$123' salida.tw; then
+    echo "FALLO  el campo no aceptó los dígitos devanagari o bengalíes: no llegó a 123"
+    exit 1
+fi
+echo "ok   el campo tomó 1 (ascii) २ (devanagari) ৩ (bengalí) y rechazó la letra y el punto"
 
 # ── El veredicto ─────────────────────────────────────────────────────────────
 #

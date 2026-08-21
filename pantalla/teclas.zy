@@ -1,80 +1,200 @@
 // ============================================================
-// pantalla/teclas.zy — las teclas que el lenguaje no sabe escribir
+// pantalla/teclas.zy — las teclas que el lenguaje no sabe escribir,
+//                       y los dígitos que no son ASCII
 //
-// Un campo de entrada necesita tres teclas que no son letras:
-// RETROCESO para corregir, ESC para cancelar y ENTER para
-// confirmar. De las tres, Zymbol solo sabe escribir una.
+// Dos problemas distintos, los dos de la misma naturaleza: el
+// lenguaje no deja preguntar por un carácter.
 //
-// No hay literal de carácter para los códigos de control. Las
-// únicas secuencias de escape son \n \t \r \" \\ \{ \} (GUIDE.md
-// §"String Literals"), no existe \e ni \xNN ni \uXXXX, y en un
-// literal de carácter una secuencia desconocida es un error de
-// análisis. Tampoco hay forma de ir por el número: `###c` responde
-// «### requires a numeric value, got Char» y `#|c|` devuelve el
-// carácter como texto, no su punto de código.
+// ── 1. Las teclas de control ─────────────────────────────────
 //
-// Así que las constantes se fabrican SALIENDO DEL LENGUAJE, con
-// `printf` del sistema. Es un rodeo y como tal es un hallazgo
-// —GAP-ZYB-010—, no una técnica que nadie deba imitar por gusto:
-// tres llamadas al intérprete de órdenes para obtener tres
-// constantes que deberían poder escribirse.
+// Un campo de entrada necesita ENTER para confirmar, RETROCESO
+// para corregir y ESC para cancelar. Zymbol solo sabe escribir la
+// primera.
 //
-// Se pagan una sola vez, al cargar el módulo, y no una vez por
-// pulsación.
+// No hay literal de carácter para un código de control: las únicas
+// secuencias de escape son \n \t \r \" \\ \{ \} (GUIDE.md §"String
+// Literals"), no existe \e ni \xNN ni \uXXXX, y en un literal de
+// carácter una secuencia desconocida es un error de análisis.
+// Tampoco hay vía por el número: `###c` responde «### requires a
+// numeric value, got Char» y `#|c|` devuelve el carácter como
+// texto. Así que se fabrican SALIENDO DEL LENGUAJE, con el
+// `printf` del sistema. GAP-ZYB-010.
 //
-// EN: pantalla/teclas.zy — the keys the language cannot spell. An
-// input field needs BACKSPACE, ESC and ENTER; Zymbol can only write
-// the last. There is no character literal for a control code (the
-// escapes are \n \t \r \" \\ \{ \} and nothing else, and an unknown
-// one is a parse error in a char literal), and no way round by the
-// number either: `###c` refuses a Char and `#|c|` returns the
-// character as text. So they are fabricated by LEAVING THE LANGUAGE
-// via the system's `printf`. That is a workaround and therefore a
-// finding (GAP-ZYB-010), paid once at module load, not per keypress.
+// ── 2. Los dígitos ───────────────────────────────────────────
+//
+// Un dígito no es `'0'`..`'9'`. Quien escribe hindi con una
+// distribución InScript teclea «१२३», y en bengalí «১২৩»: el
+// teclado manda U+0966 y U+09E6, no U+0030. Dar por hecho el ASCII
+// es dar por hecho un teclado, y esta aplicación imprime «$१२,३४५.०७»
+// en pantalla — aceptar solo ASCII sería localizar la salida y
+// dejar la entrada sin localizar, que es peor que no localizar
+// nada, porque enseña al usuario una escritura que luego le
+// rechaza.
+//
+// El lenguaje conoce 69 escrituras de cifras y sabe ESCRIBIRLAS
+// (`#০৯#`), pero no deja preguntar si un carácter es un dígito ni
+// cuánto vale. Sin punto de código no hay aritmética posible, así
+// que la única forma es una TABLA por escritura y buscar el
+// carácter dentro: su posición ES su valor. GAP-ZYB-012.
+//
+// Las trece tablas son las escrituras con teclado propio de uso
+// real. Añadir una es una línea, y `pruebas/verificación_dígitos.zy`
+// comprueba cada tabla contra el mode-switch del propio lenguaje,
+// así que un carácter mal copiado aquí no puede pasar inadvertido.
+//
+// EN: pantalla/teclas.zy — the keys the language cannot spell, and
+// the digits that are not ASCII. A digit is not `'0'`..`'9'`:
+// someone typing Hindi on an InScript layout sends U+0966, Bengali
+// U+09E6. Assuming ASCII assumes a keyboard, and this application
+// prints «$१२,३४५.०७» on screen — accepting only ASCII would localise
+// the output and leave the input unlocalised, which is worse than
+// localising nothing, since it shows the user a script it then
+// refuses. The language knows 69 digit scripts and can WRITE them,
+// but offers no way to ask whether a character is a digit or what
+// it is worth, and without a code point there is no arithmetic — so
+// a TABLE per script, where the position IS the value. GAP-ZYB-012.
 // ============================================================
 
 # .pantalla_teclas {
 
-    #> { borrar, escapar, entrar, es_dígito, es_borrar, es_escapar, es_entrar }
+    #> {
+        borrar
+        escapar
+        entrar
+        es_borrar
+        es_escapar
+        es_entrar
+        es_separador
+        dígito_ascii
+        es_dígito
+        escrituras
+        activa
+        transliterar
+    }
 
     // El retroceso del teclado envía DEL (0x7f) y llega como NUL
     // (0x00). El tabulador (0x09) llega TAMBIÉN como NUL: las dos
     // teclas colapsan en un mismo valor y son indistinguibles
     // (BUG-ZYB-006). En un campo numérico el tabulador no significa
     // nada, así que tratar ambas como «borrar» no pierde nada aquí
-    // — pero un editor de texto de verdad no podría vivir con esto.
+    // — un editor de texto de verdad no podría vivir con esto.
     //
-    // EN: the backspace key sends DEL (0x7f) and arrives as NUL
-    // (0x00). Tab (0x09) ALSO arrives as NUL: the two keys collapse
-    // into one value and cannot be told apart (BUG-ZYB-006). In a
-    // numeric field Tab means nothing, so treating both as "delete"
-    // loses nothing here — a real text editor could not live with it.
+    // EN: backspace sends DEL (0x7f) and arrives as NUL (0x00); Tab
+    // (0x09) ALSO arrives as NUL. The two collapse into one value
+    // (BUG-ZYB-006). In a numeric field Tab means nothing.
     _nul() { <~ (<\ "printf '\\000x'" \>)[1] }
     _esc() { <~ (<\ "printf '\\033'" \>)[1] }
 
     borrar()  { <~ _nul() }
     escapar() { <~ _esc() }
-
-    // ENTER sí se escribe. La tecla envía CR (0x0d) y llega
-    // normalizada como LF, que es lo correcto y lo único que este
-    // módulo no tiene que arreglar.
-    // EN: ENTER can be spelled. The key sends CR (0x0d) and arrives
-    // normalised as LF — correct, and the one thing here that needs
-    // no fixing.
-    entrar() { <~ '\n' }
+    entrar()  { <~ '\n' }
 
     es_borrar(t)  { <~ t == _nul() }
     es_escapar(t) { <~ t == _esc() }
     es_entrar(t)  { <~ t == '\n' }
 
-    // Los dígitos ASCII. El modo numeral cambia cómo se ESCRIBEN
-    // los números, no cómo se teclean: un teclado manda '5' aunque
-    // la pantalla muestre «५».
-    // EN: ASCII digits. The numeral mode changes how numbers are
-    // WRITTEN, not how they are typed: a keyboard sends '5' even
-    // when the screen shows «५».
-    es_dígito(t) {
-        <~ t == '0' || t == '1' || t == '2' || t == '3' || t == '4'
-        || t == '5' || t == '6' || t == '7' || t == '8' || t == '9'
+    // Las trece tablas. El orden dentro de cada una es 0..9, así
+    // que la posición del carácter menos uno es su valor.
+    // EN: thirteen tables, ordered 0..9, so a character's position
+    // minus one is its value.
+    escrituras() {
+        <~ [
+            ("ascii",      "0123456789"),
+            ("devanagari", "०१२३४५६७८९"),
+            ("bengalí",    "০১২৩৪৫৬৭৮৯"),
+            ("gurmukhi",   "੦੧੨੩੪੫੬੭੮੯"),
+            ("gujarati",   "૦૧૨૩૪૫૬૭૮૯"),
+            ("oriya",      "୦୧୨୩୪୫୬୭୮୯"),
+            ("tamil",      "௦௧௨௩௪௫௬௭௮௯"),
+            ("telugu",     "౦౧౨౩౪౫౬౭౮౯"),
+            ("kannada",    "೦೧೨೩೪೫೬೭೮೯"),
+            ("malayalam",  "൦൧൨൩൪൫൬൭൮൯"),
+            ("tailandés",  "๐๑๒๓๔๕๖๗๘๙"),
+            ("árabe",      "٠١٢٣٤٥٦٧٨٩"),
+            ("persa",      "۰۱۲۳۴۵۶۷۸۹")
+        ]
+    }
+
+    // El carácter tecleado → su dígito ASCII, o "" si no es un
+    // dígito en ninguna escritura conocida. Es la validación que
+    // pide un campo numérico, y es NUMÉRICA: no pregunta de qué
+    // escritura viene, pregunta cuánto vale.
+    //
+    // EN: the typed character → its ASCII digit, or "" if it is not
+    // a digit in any known script. This is the check a numeric field
+    // needs, and it is NUMERIC: it does not ask which script the
+    // character belongs to, it asks what it is worth.
+    dígito_ascii(t) {
+        ascii = "0123456789"
+        @ e:escrituras() {
+            (_nombre, tabla) = e
+            i = 1
+            @ i <= 10 {
+                ? tabla$[i..i] == ("" t) {
+                    <~ ascii$[i..i]
+                }
+                i++
+            }
+        }
+        <~ ""
+    }
+
+    es_dígito(t) { <~ dígito_ascii(t) <> "" }
+
+    // El separador decimal también cambia de escritura: el árabe
+    // usa U+066B (٫) y no el punto. La coma se acepta porque medio
+    // mundo la usa como separador decimal y porque el teclado
+    // numérico manda una u otro según la distribución.
+    //
+    // EN: the decimal separator changes script too — Arabic uses
+    // U+066B (٫), not the point. The comma is accepted because half
+    // the world writes decimals with it.
+    es_separador(t) {
+        <~ t == '.' || t == ',' || t == '٫'
+    }
+
+    // Los diez dígitos de la escritura ACTIVA, preguntándoselo al
+    // propio lenguaje en vez de deducirlo del idioma: `"" 1234567890`
+    // sale escrito en el modo numeral que haya puesto, sea cual sea,
+    // así que esto sigue funcionando el día que se añada un idioma
+    // con una escritura que este módulo no conoce.
+    //
+    // EN: the ten digits of the ACTIVE script, asked of the language
+    // rather than deduced from the locale — `"" 1234567890` comes out
+    // in whatever numeral mode is set, so this keeps working the day
+    // a locale arrives with a script this module does not list.
+    activa() {
+        n = 1234567890
+        d = "" n
+        // Viene como 1,2,…,9,0; se reordena a 0..9.
+        // EN: arrives as 1,2,…,9,0; reordered to 0..9.
+        <~ d$[10..10] d$[1..9]
+    }
+
+    // Un texto de dígitos ASCII, escrito en la escritura activa.
+    // Lo que no sea dígito (el separador decimal, el signo) pasa
+    // sin tocar.
+    // EN: a string of ASCII digits, written in the active script.
+    // Anything else passes through untouched.
+    transliterar(texto) {
+        tabla = activa()
+        ascii = "0123456789"
+        salida = ""
+        i = 1
+        @ i <= texto$# {
+            c = texto$[i..i]
+            puesto = #0
+            j = 1
+            @ j <= 10 {
+                ? c == ascii$[j..j] {
+                    salida = °salida tabla$[j..j]
+                    puesto = #1
+                }
+                j++
+            }
+            ? !puesto { salida = °salida c }
+            i++
+        }
+        <~ salida
     }
 }

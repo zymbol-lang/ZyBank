@@ -1,0 +1,43 @@
+== cada tabla, contra lo que el lenguaje escribe ==
+ok   devanagari
+ok   bengalí
+ok   gurmukhi
+ok   gujarati
+ok   oriya
+ok   tamil
+ok   telugu
+ok   kannada
+ok   malayalam
+ok   tailandés
+ok   árabe
+ok   persa
+ok   ascii
+== el siete, en seis escrituras ==
+ok   ASCII '7'
+ok   devanagari '७'
+ok   bengalí '৭'
+ok   tamil '௭'
+ok   árabe '٧'
+ok   persa '۷'
+== el cero, que es el que más se parece a una letra ==
+ok   devanagari '०'
+ok   bengalí '০'
+ok   árabe '٠'
+== lo que NO es un dígito ==
+ok   letra latina
+ok   letra acentuada
+ok   letra devanagari
+ok   letra bengalí
+ok   numeral kanji 七
+ok   punto
+== separadores decimales, incluido el árabe ==
+ok   punto
+ok   coma
+ok   árabe ٫
+ok   un dígito no lo es
+== transliterar sigue a la escritura activa ==
+ok   ASCII
+ok   devanagari
+ok   bengalí
+ok   de vuelta a ASCII
+TODO BIEN

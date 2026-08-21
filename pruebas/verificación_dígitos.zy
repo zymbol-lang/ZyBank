@@ -1,0 +1,147 @@
+// ============================================================
+// pruebas/verificación_dígitos.zy — un dígito no es «0».."9"
+//
+// Dos cosas, y la segunda es la que justifica que esta suite
+// exista aparte.
+//
+// 1. EL RECONOCIMIENTO ES NUMÉRICO. «७», «৭», «௭», «٧» y «۷» son
+//    todos el siete, y el campo de importe tiene que aceptarlos
+//    igual que acepta «7». Quien escribe hindi con una distribución
+//    InScript teclea U+0966 y no U+0030; dar por hecho el ASCII es
+//    dar por hecho un teclado.
+//
+// 2. LAS TABLAS SE COMPRUEBAN CONTRA EL PROPIO LENGUAJE. Zymbol no
+//    deja preguntar si un carácter es un dígito, así que
+//    `pantalla/teclas.zy` lleva trece tablas escritas a mano
+//    (GAP-ZYB-012) — y una tabla escrita a mano con caracteres que
+//    nadie de este equipo sabe leer de un vistazo es exactamente el
+//    sitio donde se cuela un carácter equivocado sin que nadie lo
+//    note nunca.
+//
+//    Aquí se le pide al lenguaje que escriba los diez dígitos de
+//    cada escritura —eso sí sabe hacerlo, con `#০৯#`— y se comparan
+//    con la tabla. Si alguien copia mal un carácter, esta suite lo
+//    dice; sin ella, el error solo aparecería el día que alguien
+//    con ese teclado intentara teclear justo ese dígito.
+//
+//   zymbol run pruebas/verificación_dígitos.zy
+//
+// EN: pruebas/verificación_dígitos.zy — a digit is not "0".."9".
+// Recognition is NUMERIC: «७», «৭», «௭», «٧» and «۷» are all seven.
+// And the thirteen hand-written tables in `pantalla/teclas.zy` are
+// checked against the language itself, which can WRITE each script
+// even though it cannot be asked whether a character is a digit
+// (GAP-ZYB-012). A hand-written table of characters nobody on the
+// team reads at a glance is exactly where a wrong one hides forever;
+// without this suite it would surface only when someone with that
+// keyboard typed that very digit.
+// ============================================================
+
+<# ../pantalla/teclas => k
+
+fallos = 0
+
+igual(qué, dado, esperado) {
+    ? dado == esperado {
+        >> "ok   " qué ¶
+        <~ 0
+    }
+    >> "FALLO " qué ": " dado " <> " esperado ¶
+    <~ 1
+}
+
+// El lenguaje escribe 1234567890 en el modo activo; se reordena a
+// 0..9, que es el orden de las tablas.
+// EN: the language writes 1234567890 in the active mode; reordered
+// to 0..9, the tables' own order.
+del_lenguaje() {
+    n = 1234567890
+    d = "" n
+    <~ d$[10..10] d$[1..9]
+}
+
+// La tabla que declara el módulo, por nombre.
+// EN: the module's declared table, by name.
+declarada(nombre) {
+    @ e:k::escrituras() {
+        (n, tabla) = e
+        ? n == nombre { <~ tabla }
+    }
+    <~ "«no declarada»"
+}
+
+>> "== cada tabla, contra lo que el lenguaje escribe ==" ¶
+#०९#
+fallos = fallos + igual("devanagari", declarada("devanagari"), del_lenguaje())
+#০৯#
+fallos = fallos + igual("bengalí",    declarada("bengalí"),    del_lenguaje())
+#੦੯#
+fallos = fallos + igual("gurmukhi",   declarada("gurmukhi"),   del_lenguaje())
+#૦૯#
+fallos = fallos + igual("gujarati",   declarada("gujarati"),   del_lenguaje())
+#୦୯#
+fallos = fallos + igual("oriya",      declarada("oriya"),      del_lenguaje())
+#௦௯#
+fallos = fallos + igual("tamil",      declarada("tamil"),      del_lenguaje())
+#౦౯#
+fallos = fallos + igual("telugu",     declarada("telugu"),     del_lenguaje())
+#೦೯#
+fallos = fallos + igual("kannada",    declarada("kannada"),    del_lenguaje())
+#൦൯#
+fallos = fallos + igual("malayalam",  declarada("malayalam"),  del_lenguaje())
+#๐๙#
+fallos = fallos + igual("tailandés",  declarada("tailandés"),  del_lenguaje())
+#٠٩#
+fallos = fallos + igual("árabe",      declarada("árabe"),      del_lenguaje())
+#۰۹#
+fallos = fallos + igual("persa",      declarada("persa"),      del_lenguaje())
+#09#
+fallos = fallos + igual("ascii",      declarada("ascii"),      del_lenguaje())
+
+>> "== el siete, en seis escrituras ==" ¶
+fallos = fallos + igual("ASCII '7'",      k::dígito_ascii('7'), "7")
+fallos = fallos + igual("devanagari '७'", k::dígito_ascii('७'), "7")
+fallos = fallos + igual("bengalí '৭'",    k::dígito_ascii('৭'), "7")
+fallos = fallos + igual("tamil '௭'",      k::dígito_ascii('௭'), "7")
+fallos = fallos + igual("árabe '٧'",      k::dígito_ascii('٧'), "7")
+fallos = fallos + igual("persa '۷'",      k::dígito_ascii('۷'), "7")
+
+>> "== el cero, que es el que más se parece a una letra ==" ¶
+fallos = fallos + igual("devanagari '०'", k::dígito_ascii('०'), "0")
+fallos = fallos + igual("bengalí '০'",    k::dígito_ascii('০'), "0")
+fallos = fallos + igual("árabe '٠'",      k::dígito_ascii('٠'), "0")
+
+>> "== lo que NO es un dígito ==" ¶
+fallos = fallos + igual("letra latina",   k::dígito_ascii('a'), "")
+fallos = fallos + igual("letra acentuada", k::dígito_ascii('ñ'), "")
+fallos = fallos + igual("letra devanagari", k::dígito_ascii('क'), "")
+fallos = fallos + igual("letra bengalí",  k::dígito_ascii('ক'), "")
+// 七 es «siete» en japonés, pero no es un dígito posicional: no se
+// puede escribir 七五 y esperar 75. Rechazarlo es lo correcto.
+// EN: 七 is "seven" in Japanese but not a positional digit — 七五 is
+// not 75 — so refusing it is right.
+fallos = fallos + igual("numeral kanji 七", k::dígito_ascii('七'), "")
+fallos = fallos + igual("punto",          k::dígito_ascii('.'), "")
+
+>> "== separadores decimales, incluido el árabe ==" ¶
+fallos = fallos + igual("punto",      k::es_separador('.'), #1)
+fallos = fallos + igual("coma",       k::es_separador(','), #1)
+fallos = fallos + igual("árabe ٫",    k::es_separador('٫'), #1)
+fallos = fallos + igual("un dígito no lo es", k::es_separador('5'), #0)
+
+>> "== transliterar sigue a la escritura activa ==" ¶
+fallos = fallos + igual("ASCII", k::transliterar("12.50"), "12.50")
+#०९#
+fallos = fallos + igual("devanagari", k::transliterar("12.50"), "१२.५०")
+#০৯#
+fallos = fallos + igual("bengalí", k::transliterar("12.50"), "১২.৫০")
+#09#
+fallos = fallos + igual("de vuelta a ASCII", k::transliterar("12.50"), "12.50")
+
+>> "" ¶
+? fallos == 0 {
+    >> "TODO BIEN" ¶
+}
+_ {
+    >> "FALLOS: " fallos ¶
+}

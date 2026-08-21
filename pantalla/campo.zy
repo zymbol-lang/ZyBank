@@ -85,7 +85,21 @@
         @ vivo {
             _limpiar(fila, col, ancho + 24)
             >>~ (fila, col, 0, ETIQUETA, 0) > etiqueta
-            marca = crudo "_"
+            // Se guarda en ASCII y se PINTA en la escritura activa.
+            // Quien teclea «१२» en un teclado hindi ve «१२»; quien
+            // teclea «12» con el idioma en hindi también, porque lo
+            // que manda es la escritura del idioma elegido, igual
+            // que para el saldo y para la vista previa. El crudo no
+            // sale nunca de aquí, así que la aritmética se hace
+            // siempre sobre ASCII y nunca sobre lo que se tecleó.
+            //
+            // EN: stored in ASCII, PAINTED in the active script.
+            // Someone typing «१२» on a Hindi keyboard sees «१२»; so
+            // does someone typing «12» with the locale in Hindi,
+            // because what rules is the script of the chosen locale,
+            // as for the balance and the preview. The raw string
+            // never leaves, so arithmetic is always over ASCII.
+            marca = k::transliterar(crudo) "_"
             >>~ (fila, col + tm::width(etiqueta) + 1, 1, ENTRADA, 0) > marca
 
             // La vista previa: el mismo entero que se guardará,
@@ -115,13 +129,20 @@
                 // El límite de decimales es el de la MONEDA, y el
                 // ancho del campo el del campo. Ni uno ni otro
                 // dejan escribir de más.
-                // EN: the decimal limit is the CURRENCY's.
+                //
+                // Se guarda el VALOR del dígito, no la tecla: «७»
+                // entra como "7". Así una misma cuenta admite que
+                // hoy se teclee en devanagari y mañana en ASCII, y
+                // el número guardado es el mismo.
+                // EN: the digit's VALUE is stored, not the key: «७»
+                // enters as "7", so the same account takes Devanagari
+                // today and ASCII tomorrow and stores one number.
                 d = _decimales(crudo)
                 cabe = crudo$# < ancho
                 ? d >= exp { cabe = #0 }
-                ? cabe { crudo = crudo "" t }
+                ? cabe { crudo = crudo k::dígito_ascii(t) }
             }
-            _? t == '.' || t == ',' {
+            _? k::es_separador(t) {
                 // Un separador solo si la moneda tiene decimales, y
                 // solo uno. En CLP esta tecla no hace nada, que es
                 // exactamente lo que debe hacer.
