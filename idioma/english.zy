@@ -81,7 +81,23 @@
             ("info.entradas",          "In"),
             ("info.salidas",           "Out"),
             ("info.neto",              "Net"),
-            ("info.periodo",           "Period")
+            ("info.periodo",           "Period"),
+            ("cat.ingreso.ajuste",     "Adjustment (credit)"),
+            ("cat.gasto.ajuste",       "Adjustment (debit)"),
+            ("campo.nombre",           "Name"),
+            ("acción.nuevo",           "New"),
+            ("acción.editar",          "Edit"),
+            ("acción.borrar",          "Delete"),
+            ("acción.abonar",          "Credit"),
+            ("acción.descontar",       "Debit"),
+            ("acción.cuenta_nueva",    "New account"),
+            ("msg.confirmar_borrado",  "Delete this movement?"),
+            ("msg.borrado",            "Deleted"),
+            ("msg.actualizado",        "Updated"),
+            ("msg.cancelado",          "Cancelled"),
+            ("msg.traspaso_fijo",      "A transfer is corrected by deleting it whole"),
+            ("msg.elige_categoría",    "Pick a category"),
+            ("msg.cuenta_creada",      "Account created")
         ]
     }
 }

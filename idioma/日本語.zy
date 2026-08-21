@@ -84,7 +84,23 @@
             ("info.entradas",          "入金"),
             ("info.salidas",           "出金"),
             ("info.neto",              "差引"),
-            ("info.periodo",           "期間")
+            ("info.periodo",           "期間"),
+            ("cat.ingreso.ajuste",     "調整（入金）"),
+            ("cat.gasto.ajuste",       "調整（出金）"),
+            ("campo.nombre",           "名称"),
+            ("acción.nuevo",           "新規"),
+            ("acción.editar",          "編集"),
+            ("acción.borrar",          "削除"),
+            ("acción.abonar",          "入金"),
+            ("acción.descontar",       "出金"),
+            ("acción.cuenta_nueva",    "口座開設"),
+            ("msg.confirmar_borrado",  "この取引を削除しますか？"),
+            ("msg.borrado",            "削除しました"),
+            ("msg.actualizado",        "更新しました"),
+            ("msg.cancelado",          "取消しました"),
+            ("msg.traspaso_fijo",      "振替は全体を削除して修正します"),
+            ("msg.elige_categoría",    "分類を選択"),
+            ("msg.cuenta_creada",      "口座を開設しました")
         ]
     }
 }

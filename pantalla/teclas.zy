@@ -1,0 +1,80 @@
+// ============================================================
+// pantalla/teclas.zy — las teclas que el lenguaje no sabe escribir
+//
+// Un campo de entrada necesita tres teclas que no son letras:
+// RETROCESO para corregir, ESC para cancelar y ENTER para
+// confirmar. De las tres, Zymbol solo sabe escribir una.
+//
+// No hay literal de carácter para los códigos de control. Las
+// únicas secuencias de escape son \n \t \r \" \\ \{ \} (GUIDE.md
+// §"String Literals"), no existe \e ni \xNN ni \uXXXX, y en un
+// literal de carácter una secuencia desconocida es un error de
+// análisis. Tampoco hay forma de ir por el número: `###c` responde
+// «### requires a numeric value, got Char» y `#|c|` devuelve el
+// carácter como texto, no su punto de código.
+//
+// Así que las constantes se fabrican SALIENDO DEL LENGUAJE, con
+// `printf` del sistema. Es un rodeo y como tal es un hallazgo
+// —GAP-ZYB-010—, no una técnica que nadie deba imitar por gusto:
+// tres llamadas al intérprete de órdenes para obtener tres
+// constantes que deberían poder escribirse.
+//
+// Se pagan una sola vez, al cargar el módulo, y no una vez por
+// pulsación.
+//
+// EN: pantalla/teclas.zy — the keys the language cannot spell. An
+// input field needs BACKSPACE, ESC and ENTER; Zymbol can only write
+// the last. There is no character literal for a control code (the
+// escapes are \n \t \r \" \\ \{ \} and nothing else, and an unknown
+// one is a parse error in a char literal), and no way round by the
+// number either: `###c` refuses a Char and `#|c|` returns the
+// character as text. So they are fabricated by LEAVING THE LANGUAGE
+// via the system's `printf`. That is a workaround and therefore a
+// finding (GAP-ZYB-010), paid once at module load, not per keypress.
+// ============================================================
+
+# .pantalla_teclas {
+
+    #> { borrar, escapar, entrar, es_dígito, es_borrar, es_escapar, es_entrar }
+
+    // El retroceso del teclado envía DEL (0x7f) y llega como NUL
+    // (0x00). El tabulador (0x09) llega TAMBIÉN como NUL: las dos
+    // teclas colapsan en un mismo valor y son indistinguibles
+    // (BUG-ZYB-006). En un campo numérico el tabulador no significa
+    // nada, así que tratar ambas como «borrar» no pierde nada aquí
+    // — pero un editor de texto de verdad no podría vivir con esto.
+    //
+    // EN: the backspace key sends DEL (0x7f) and arrives as NUL
+    // (0x00). Tab (0x09) ALSO arrives as NUL: the two keys collapse
+    // into one value and cannot be told apart (BUG-ZYB-006). In a
+    // numeric field Tab means nothing, so treating both as "delete"
+    // loses nothing here — a real text editor could not live with it.
+    _nul() { <~ (<\ "printf '\\000x'" \>)[1] }
+    _esc() { <~ (<\ "printf '\\033'" \>)[1] }
+
+    borrar()  { <~ _nul() }
+    escapar() { <~ _esc() }
+
+    // ENTER sí se escribe. La tecla envía CR (0x0d) y llega
+    // normalizada como LF, que es lo correcto y lo único que este
+    // módulo no tiene que arreglar.
+    // EN: ENTER can be spelled. The key sends CR (0x0d) and arrives
+    // normalised as LF — correct, and the one thing here that needs
+    // no fixing.
+    entrar() { <~ '\n' }
+
+    es_borrar(t)  { <~ t == _nul() }
+    es_escapar(t) { <~ t == _esc() }
+    es_entrar(t)  { <~ t == '\n' }
+
+    // Los dígitos ASCII. El modo numeral cambia cómo se ESCRIBEN
+    // los números, no cómo se teclean: un teclado manda '5' aunque
+    // la pantalla muestre «५».
+    // EN: ASCII digits. The numeral mode changes how numbers are
+    // WRITTEN, not how they are typed: a keyboard sends '5' even
+    // when the screen shows «५».
+    es_dígito(t) {
+        <~ t == '0' || t == '1' || t == '2' || t == '3' || t == '4'
+        || t == '5' || t == '6' || t == '7' || t == '8' || t == '9'
+    }
+}

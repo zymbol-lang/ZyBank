@@ -31,4 +31,31 @@ ok   sin asientos nuevos
 ok   una fila por categoría, todas CLP
 ok   ninguna fila mezcla monedas
 ok   el gasto es el gasto
+== una consulta sin filas no es un error, y hay que saberlo ==
+ok   $! NO detecta la fila ausente
+ok   es_nulo SÍ la detecta
+ok   y no confunde una que sí existe
+== abonar y descontar son movimientos, no un saldo que cambia ==
+ok   abonado
+ok   el saldo sube
+ok   descontado
+ok   el saldo baja
+ok   el saldo inicial NO se tocó
+ok   hay categoría de ajuste
+== corregir un asiento ==
+ok   actualizado
+ok   el monto cambió
+ok   la glosa cambió
+== un traspaso no se corrige a medias ==
+ok   traspaso hecho
+ok   se rechaza editar media transferencia
+ok   y dice por qué
+== borrar un traspaso se lleva sus DOS asientos ==
+ok   borrado
+ok   se fue entero
+ok   dos asientos menos
+== borrar un movimiento corriente se lleva uno ==
+ok   borrado
+ok   uno menos
+ok   y ya no está
 TODO BIEN

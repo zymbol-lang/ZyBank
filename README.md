@@ -5,7 +5,7 @@ over SQLite.
 
 It is an **LDV project** (`interpreter/LDV.md`): an application built to find
 out what the language cannot yet say. The program is the instrument; the
-finding is the product. Nineteen of them are in
+finding is the product. Twenty-four of them are in
 [HALLAZGOS.md](HALLAZGOS.md) — including **two engine divergences in behaviour**
 (each engine breaks a different way of passing a function between modules) and a
 third in diagnostics, in a language whose gate reports zero divergences over 616
@@ -35,13 +35,40 @@ use it at all — and `#.2|10.5|` prints `10.5`, not `10.50`.
 Needs a `zymbol` binary with `std/db` (a source build, or Windows) and an ODBC
 DSN named `zymbol_sqlite` — see `zyquality/corpus/stdlib/README-odbc.md`.
 
+### Full screen
+
+```bash
+zymbol run zybank_tui.zy
+```
+
+Where the ledger is actually operated: opening accounts, recording movements,
+correcting and deleting them, and **crediting or debiting a balance**. Two things
+exist only here:
+
+- **Validation happens while typing.** The amount field does not accept a letter
+  — it does not type it — and the decimal point only enters if the currency has
+  decimals: in Chilean pesos the point key does nothing, in dollars it takes two
+  digits after it, in Kuwaiti dinars three. There is no invalid state to correct
+  because none is ever reached. The amount is shown formatted as it is typed:
+  `1234` reads `$1.234` in a CLP field and `$12.34` in a USD one, same keystrokes.
+- **The locale changes live**, digits included, with nothing reloaded.
+
+Keys: `jk` move · `⏎` open/back · `n` new · `e` edit · `x` delete · `+` credit ·
+`-` debit · `c` new account · `r` summary · `i` locale · `q` quit. No arrow keys,
+and not by choice: [GAP-ZYB-011](HALLAZGOS.md#gap-zyb-011).
+
+**Crediting and debiting are movements, not a balance that changes.** The opening
+balance never moves again; an adjustment leaves its own line, with its date and
+note. A ledger whose balance moves without a trace is not a ledger.
+
+### By command
+
 ```bash
 zymbol run zybank.zy iniciar                      # create the schema, seed categories
 zymbol run zybank.zy nueva Corriente CLP 500000   # an account
 zymbol run zybank.zy anotar Corriente gasto.alimentación 25990 "Feria" 2026-08-01
 zymbol run zybank.zy cuentas
 zymbol run zybank.zy resumen Corriente 2026-08-01 2026-08-31
-zymbol run zybank_tui.zy                          # full-screen browser
 ```
 
 **The verbs are accepted in all four languages, always** — `zybank 口座`,
@@ -63,7 +90,7 @@ Configuration follows one rule: **the file outranks, the database remembers.**
 | `idioma/` | the dispatcher and four catalogues (es · en · ja · hi) |
 | `presentación/` | columns measured with `std/term`, never with `$#` |
 | `interfaz/` | the verbs and the command application |
-| `pantalla/` | the full-screen browser |
+| `pantalla/` | the full-screen application: key constants, input fields, screens |
 | `pruebas/` | five suites, registered in `zyquality/project/apps.toml` |
 
 ## Testing

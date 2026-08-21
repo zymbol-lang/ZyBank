@@ -1,0 +1,276 @@
+// ============================================================
+// pantalla/campo.zy — leer datos dentro del modo crudo
+//
+// En modo crudo `<<|` entrega UNA tecla. Un campo de entrada hay
+// que construirlo: acumular, borrar, redibujar y decidir cuándo se
+// ha terminado. Esto es ese campo.
+//
+// LA VALIDACIÓN ES POR TECLA, NO AL CONFIRMAR. Un campo de importe
+// no acepta una letra: sencillamente no la escribe. Y el punto
+// decimal no se acepta «si el texto queda bien» — se acepta si la
+// MONEDA tiene decimales. En pesos chilenos (exponente 0) la tecla
+// del punto no hace nada, porque en pesos chilenos no hay nada
+// que poner detrás del punto; en dólares se admite uno y hasta dos
+// dígitos tras él; en dinares kuwaitíes, tres.
+//
+// Esa es la diferencia entre validar la entrada y corregir el
+// error después: aquí no hay error que corregir, porque el estado
+// inválido nunca llega a existir. Y el usuario ve el importe
+// formateado en su moneda mientras teclea, así que sabe en todo
+// momento qué está escribiendo — «1234» en un campo CLP se lee
+// «$1.234» y en uno USD «$12.34», con la misma pulsación.
+//
+// EN: pantalla/campo.zy — reading data inside raw mode. `<<|` gives
+// one key; a field has to be built. VALIDATION IS PER KEYSTROKE,
+// NOT ON CONFIRM: an amount field does not accept a letter — it
+// simply does not type it — and the decimal point is accepted
+// because the CURRENCY has decimals, not because the text would
+// come out well. In CLP (exponent 0) the point key does nothing;
+// USD takes two digits after it, KWD three. The live preview shows
+// the amount formatted in its currency as it is typed.
+// ============================================================
+
+# .pantalla_campo {
+
+    <# ./teclas => k
+    <# ../núcleo/dinero => din
+    <# std/term => tm
+
+    #> { número, texto, confirmar, elegir }
+
+    ETIQUETA := 250
+    ENTRADA  := 231
+    VISTA    := 45
+    AVISO    := 203
+
+    _limpiar(fila, col, ancho) {
+        blanco = ""
+        i = 1
+        @ i <= ancho {
+            blanco = °blanco " "
+            i++
+        }
+        >>~ (fila, col) > blanco
+    }
+
+    // Cuántos dígitos hay ya después del separador decimal.
+    // Devuelve -1 si todavía no hay separador.
+    // EN: how many digits are already past the decimal separator;
+    // -1 when there is none yet.
+    _decimales(crudo) {
+        pos = 0
+        i = 1
+        @ i <= crudo$# {
+            ? crudo$[i..i] == "." { pos = i }
+            i++
+        }
+        ? pos == 0 { <~ 0 - 1 }
+        <~ crudo$# - pos
+    }
+
+    // ── El campo de importe ──────────────────────────────────
+    //
+    // Devuelve (confirmado, monto_entero). El monto sale ya en la
+    // unidad menor de la moneda: quien lo recibe no vuelve a
+    // interpretar el texto, porque el texto no sale de aquí.
+    //
+    // EN: returns (confirmed, integer amount) already in the
+    // currency's minor unit — the text never leaves this function.
+    número(fila, col, ancho, moneda, etiqueta) {
+        exp = moneda["exponente"]
+        crudo = ""
+        vivo = #1
+        confirmado = #0
+
+        @ vivo {
+            _limpiar(fila, col, ancho + 24)
+            >>~ (fila, col, 0, ETIQUETA, 0) > etiqueta
+            marca = crudo "_"
+            >>~ (fila, col + tm::width(etiqueta) + 1, 1, ENTRADA, 0) > marca
+
+            // La vista previa: el mismo entero que se guardará,
+            // escrito como lo lee una persona.
+            // EN: the preview is the very integer that will be
+            // stored, written as a person reads it.
+            (válido, valor) = din::analizar(crudo, moneda)
+            ? válido {
+                >>~ (fila, col + tm::width(etiqueta) + ancho + 3, 0, VISTA, 0) > din::formatear(valor, moneda)
+            }
+
+            <<| t
+
+            ? k::es_entrar(t) {
+                ? válido {
+                    confirmado = #1
+                    vivo = #0
+                }
+            }
+            _? k::es_escapar(t) {
+                vivo = #0
+            }
+            _? k::es_borrar(t) {
+                ? crudo$# > 0 { crudo = crudo$-[crudo$#] }
+            }
+            _? k::es_dígito(t) {
+                // El límite de decimales es el de la MONEDA, y el
+                // ancho del campo el del campo. Ni uno ni otro
+                // dejan escribir de más.
+                // EN: the decimal limit is the CURRENCY's.
+                d = _decimales(crudo)
+                cabe = crudo$# < ancho
+                ? d >= exp { cabe = #0 }
+                ? cabe { crudo = crudo "" t }
+            }
+            _? t == '.' || t == ',' {
+                // Un separador solo si la moneda tiene decimales, y
+                // solo uno. En CLP esta tecla no hace nada, que es
+                // exactamente lo que debe hacer.
+                // EN: a separator only if the currency has decimals,
+                // and only one. In CLP this key does nothing.
+                ? exp > 0 {
+                    ? _decimales(crudo) < 0 {
+                        ? crudo$# == 0 { crudo = "0." }
+                        _ { crudo = crudo "." }
+                    }
+                }
+            }
+        }
+
+        _limpiar(fila, col, ancho + 24)
+        ? confirmado {
+            (_v, valor) = din::analizar(crudo, moneda)
+            <~ (#1, valor)
+        }
+        <~ (#0, 0)
+    }
+
+    // ── El campo de texto ────────────────────────────────────
+    //
+    // Para glosas y nombres. Acepta cualquier carácter imprimible,
+    // que aquí incluye acentos, kana y devanagari: `<<|` entrega
+    // graphemes completos, así que «ñ» llega en una sola lectura y
+    // no en dos bytes.
+    //
+    // EN: for notes and names. Accepts any printable character,
+    // accents, kana and Devanagari included: `<<|` delivers whole
+    // graphemes, so «ñ» arrives in one read, not two bytes.
+    texto(fila, col, ancho, etiqueta, inicial) {
+        crudo = inicial
+        vivo = #1
+        confirmado = #0
+
+        @ vivo {
+            _limpiar(fila, col, ancho + 24)
+            >>~ (fila, col, 0, ETIQUETA, 0) > etiqueta
+            marca = crudo "_"
+            >>~ (fila, col + tm::width(etiqueta) + 1, 1, ENTRADA, 0) > marca
+
+            <<| t
+
+            ? k::es_entrar(t) {
+                confirmado = #1
+                vivo = #0
+            }
+            _? k::es_escapar(t) {
+                vivo = #0
+            }
+            _? k::es_borrar(t) {
+                ? crudo$# > 0 { crudo = crudo$-[crudo$#] }
+            }
+            _ {
+                // Se mide en COLUMNAS y no en caracteres: «食費»
+                // ocupa cuatro columnas del campo, no dos.
+                // EN: measured in COLUMNS, not characters.
+                nuevo = crudo "" t
+                ? tm::width(nuevo) <= ancho { crudo = nuevo }
+            }
+        }
+
+        _limpiar(fila, col, ancho + 24)
+        ? confirmado { <~ (#1, crudo) }
+        <~ (#0, inicial)
+    }
+
+    // ── Elegir de una lista ──────────────────────────────────
+    //
+    // `j`/`k` mueven, ENTER elige, ESC cancela. Las flechas no:
+    // llegan como tres lecturas (ESC, '[', 'A') y la primera es
+    // indistinguible de pulsar ESC de verdad, así que un menú que
+    // las aceptara no podría cancelarse. GAP-ZYB-011.
+    //
+    // EN: `j`/`k` move, ENTER picks, ESC cancels. Not the arrows:
+    // they arrive as three reads (ESC, '[', 'A') whose first is
+    // indistinguishable from a real ESC, so a menu accepting them
+    // could not be cancelled. GAP-ZYB-011.
+    elegir(fila, col, ancho, opciones, etiqueta) {
+        sel = 1
+        vivo = #1
+        confirmado = #0
+
+        @ vivo {
+            >>~ (fila, col, 0, ETIQUETA, 0) > etiqueta
+            i = 1
+            @ i <= opciones$# {
+                _limpiar(fila + i, col, ancho + 4)
+                estilo = 0
+                color = ETIQUETA
+                marca = "  "
+                ? i == sel {
+                    estilo = 1
+                    color = ENTRADA
+                    marca = "▸ "
+                }
+                >>~ (fila + i, col, estilo, color, 0) > marca opciones[i]
+                i++
+            }
+
+            <<| t
+
+            ? k::es_entrar(t) {
+                confirmado = #1
+                vivo = #0
+            }
+            _? k::es_escapar(t) {
+                vivo = #0
+            }
+            _? t == 'j' {
+                ? sel < opciones$# { sel++ }
+            }
+            _? t == 'k' {
+                ? sel > 1 { sel-- }
+            }
+        }
+
+        i = 0
+        @ i <= opciones$# {
+            _limpiar(fila + i, col, ancho + 4)
+            i++
+        }
+        ? confirmado { <~ (#1, sel) }
+        <~ (#0, 0)
+    }
+
+    // Sí/no. `s` y `y` valen que sí, porque la aplicación habla
+    // cuatro idiomas y la tecla no se traduce.
+    // EN: yes/no. Both `s` and `y` mean yes — the application speaks
+    // four languages and the key is not translated.
+    confirmar(fila, col, pregunta) {
+        _limpiar(fila, col, tm::width(pregunta) + 12)
+        >>~ (fila, col, 1, AVISO, 0) > pregunta " [s/n]"
+        respuesta = #0
+        vivo = #1
+        @ vivo {
+            <<| t
+            ? t == 's' || t == 'S' || t == 'y' || t == 'Y' {
+                respuesta = #1
+                vivo = #0
+            }
+            _? t == 'n' || t == 'N' || k::es_escapar(t) || k::es_entrar(t) {
+                respuesta = #0
+                vivo = #0
+            }
+        }
+        _limpiar(fila, col, tm::width(pregunta) + 12)
+        <~ respuesta
+    }
+}

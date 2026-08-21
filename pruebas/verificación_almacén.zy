@@ -159,6 +159,73 @@ _ {
     }
     fallos = fallos + igual("el gasto es el gasto", d::formatear(total_alim, m::obtener("CLP")), "-$25.990")
 
+    >> "== una consulta sin filas no es un error, y hay que saberlo ==" ¶
+    // BUG-ZYB-007: `$!` responde #0 tanto si hay fila como si no, así que la
+    // comprobación que la documentación indica nunca se dispara. Esto vigila
+    // que el programa siga usando la que sí funciona.
+    // EN: BUG-ZYB-007 — `$!` says #0 with or without a row, so the check the
+    // documentation prescribes never fires. This watches that the program keeps
+    // using the one that works.
+    fantasma = a::cuenta_por_nombre("NoExisteEstaCuenta")
+    fallos = fallos + igual("$! NO detecta la fila ausente", fantasma$!, #0)
+    fallos = fallos + igual("es_nulo SÍ la detecta", a::es_nulo(fantasma), #1)
+    fallos = fallos + igual("y no confunde una que sí existe", a::es_nulo(a::cuenta_por_nombre("Corriente")), #0)
+
+    >> "== abonar y descontar son movimientos, no un saldo que cambia ==" ¶
+    antes = a::saldo(c1)
+    (ok_ab, _e1) = a::ajustar("2026-08-10", c1, 50000, "Aguinaldo")
+    fallos = fallos + igual("abonado", ok_ab, #1)
+    fallos = fallos + igual("el saldo sube", a::saldo(c1), antes + 50000)
+    (ok_de, _e2) = a::ajustar("2026-08-11", c1, 0 - 20000, "Multa")
+    fallos = fallos + igual("descontado", ok_de, #1)
+    fallos = fallos + igual("el saldo baja", a::saldo(c1), antes + 30000)
+    // Lo que distingue un ajuste de tocar el saldo: queda una línea.
+    // EN: what separates an adjustment from editing the balance: a line remains.
+    fallos = fallos + igual("el saldo inicial NO se tocó", (a::cuenta(c1)).saldo_inicial, 500000)
+    fallos = fallos + igual("hay categoría de ajuste", a::es_nulo(a::categoría_por_clave("ingreso.ajuste")), #0)
+
+    >> "== corregir un asiento ==" ¶
+    último = (a::movimientos(c1, 1))[1]
+    (ok_up, _e3) = a::actualizar(último.id, último.fecha, 0, 0 - 33000, "Multa corregida")
+    fallos = fallos + igual("actualizado", ok_up, #1)
+    revisado = a::movimiento(último.id)
+    fallos = fallos + igual("el monto cambió", revisado.monto, 0 - 33000)
+    fallos = fallos + igual("la glosa cambió", revisado.glosa, "Multa corregida")
+
+    >> "== un traspaso no se corrige a medias ==" ¶
+    (ok_tr, marca2) = a::traspasar("2026-08-12", c1, c2, 10000, 1000, "Cambio")
+    fallos = fallos + igual("traspaso hecho", ok_tr, #1)
+    // Se busca por la MARCA que devolvió `traspasar`, no «el último que tenga
+    // traspaso»: los movimientos vienen en orden descendente, así que aquel
+    // recorrido se quedaba con la pata del traspaso MÁS ANTIGUO y la prueba
+    // borraba el que no era.
+    // EN: found by the MARK `traspasar` returned, not by "the last one with a
+    // transfer": rows come newest-first, so that walk kept the OLDEST leg.
+    pata = #0
+    @ mv:a::movimientos(c1, 50) {
+        ? !a::es_nulo(mv.traspaso) {
+            ? mv.traspaso == marca2 { pata = mv }
+        }
+    }
+    (ok_mal, razón2) = a::actualizar(pata.id, pata.fecha, 0, 1, "no")
+    fallos = fallos + igual("se rechaza editar media transferencia", ok_mal, #0)
+    fallos = fallos + igual("y dice por qué", razón2, "traspaso")
+
+    >> "== borrar un traspaso se lleva sus DOS asientos ==" ¶
+    antes_n = a::movimientos(0, 99)$#
+    (ok_del, qué) = a::borrar(pata.id)
+    fallos = fallos + igual("borrado", ok_del, #1)
+    fallos = fallos + igual("se fue entero", qué, "traspaso_completo")
+    fallos = fallos + igual("dos asientos menos", a::movimientos(0, 99)$#, antes_n - 2)
+
+    >> "== borrar un movimiento corriente se lleva uno ==" ¶
+    antes_n2 = a::movimientos(0, 99)$#
+    uno = (a::movimientos(c1, 1))[1]
+    (ok_d2, _q2) = a::borrar(uno.id)
+    fallos = fallos + igual("borrado", ok_d2, #1)
+    fallos = fallos + igual("uno menos", a::movimientos(0, 99)$#, antes_n2 - 1)
+    fallos = fallos + igual("y ya no está", a::es_nulo(a::movimiento(uno.id)), #1)
+
     a::cerrar()
     <\ "rm -f zybank_prueba.db" \>
 }

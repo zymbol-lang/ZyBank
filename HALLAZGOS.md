@@ -33,13 +33,25 @@ científico, un auditor de código y dos juegos de tablero. Ninguno tenía:
 | **datos que sobreviven al idioma** | lo guardado son claves; los nombres se traducen al mostrarse, y una base creada en japonés se lee en español |
 | **configuración con precedencia** | archivo JSON sobre lo recordado en la base |
 
-De los diecinueve hallazgos —5 BUG, 9 GAP, 3 ERROR, 2 IDEA— la mitad larga sale
+De los veinticuatro hallazgos —8 BUG, 11 GAP, 3 ERROR, 2 IDEA— la mitad larga sale
 de esas intersecciones y no de una característica aislada, que es el argumento
 de `LDV.md` § 4 en concreto. Los dos peores lo dejan claro: pasar una función
 entre módulos rompe en el tree-walker de una manera
 ([BUG-ZYB-001](#bug-zyb-001)) y en la VM de otra
 ([BUG-ZYB-005](#bug-zyb-005)), y hacen falta **tres** características compuestas
 para llegar a cualquiera de los dos.
+
+**La interfaz de pantalla completa añadió cinco más**, y una de ellas —
+[BUG-ZYB-007](#bug-zyb-007) — llevaba desde el primer día en la CLI sin que
+ninguna suite la viera, porque todas consultaban cosas que existían. Eso es la
+tesis del método en pequeño: la superficie nueva no encontró un fallo *nuevo*,
+encontró uno viejo que nadie había tenido motivo de pisar. Las otras cuatro
+salen de que **nadie había escrito antes un campo de entrada en Zymbol**: el
+teclado pierde el modificador Control y colapsa dos teclas en una
+([BUG-ZYB-006](#bug-zyb-006)), no hay forma de escribir el carácter que la tecla
+de borrar produce ([GAP-ZYB-010](#gap-zyb-010)), las flechas no se pueden usar
+sin perder ESC ([GAP-ZYB-011](#gap-zyb-011)), y el tree-walker repinta un estado
+que ya se había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
 
 ---
 
@@ -52,6 +64,9 @@ para llegar a cualquiera de los dos.
 | [BUG-ZYB-003](#bug-zyb-003) | BUG | errores blandos | componer un mensaje con un error blando **aborta el programa** | abierto |
 | [BUG-ZYB-004](#bug-zyb-004) | BUG | resolución de módulos | un `<# ../x` funciona o no **según cómo se nombre el archivo** al ejecutarlo | abierto |
 | [BUG-ZYB-005](#bug-zyb-005) | BUG | compilador (VM) | pasar una función **de un módulo** a otro módulo funciona en TW y JS, y **falla en la VM** | abierto |
+| [BUG-ZYB-006](#bug-zyb-006) | BUG | entrada de teclado | `<<|` entrega Ctrl+letra **como la letra**, y colapsa Tab y retroceso en un mismo valor | abierto |
+| [BUG-ZYB-007](#bug-zyb-007) | BUG | `std/db` | `query_one` sin filas **no da el error blando que la documentación promete**; `$!` nunca se dispara | abierto |
+| [BUG-ZYB-008](#bug-zyb-008) | BUG | estado de módulo (TW) | escribir estado del módulo dentro de `>>|` **no lo ve otra función del mismo módulo** — TW conserva el valor viejo, la VM no | abierto · sin reducir |
 | [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | no hay precisión decimal en tiempo de ejecución ni relleno de ceros | abierto |
 | [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes | abierto |
 | [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío | abierto |
@@ -61,6 +76,8 @@ para llegar a cualquiera de los dos.
 | [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | la yuxtaposición no se admite en argumentos de llamada | abierto |
 | [GAP-ZYB-008](#gap-zyb-008) | GAP | conversión a texto | un agregado se imprime con `>>` pero no se puede llevar a una cadena | abierto |
 | [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es | abierto |
+| [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | no hay forma de escribir un carácter de control: hay que salir al intérprete de órdenes | abierto |
+| [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | las flechas del teclado no se pueden usar sin perder la tecla ESC | abierto |
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico | abierto |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | abierto |
@@ -373,6 +390,174 @@ llegó a esa forma por un bug y no por gusto.
 
 ---
 
+## BUG-ZYB-006
+
+**`<<|` entrega Ctrl+letra como la letra, y colapsa el tabulador y el retroceso en un mismo valor.**
+
+Medido escribiendo a un archivo lo que `<<|` devuelve y mirando los bytes, con el
+programa conducido por un pty de verdad:
+
+| tecla enviada | byte recibido | qué significa |
+|---|---|---|
+| `Ctrl+A` `0x01` | `0x61` = `a` | **indistinguible de la letra `a`** |
+| `Ctrl+C` `0x03` | `0x63` = `c` | indistinguible de `c` |
+| `Ctrl+H` `0x08` | `0x68` = `h` | indistinguible de `h` |
+| `Tab` `0x09` | `0x00` | |
+| **retroceso** `0x7f` | `0x00` | **el mismo valor que el tabulador** |
+| `ESC` `0x1b` | `0x1b` | correcto |
+| `Enter` `0x0d` | `0x0a` | normalizado a LF — correcto y deseable |
+| `ñ` `0xc3 0xb1` | `ñ` | correcto: llega un grapheme entero, no dos bytes |
+
+Dos pérdidas distintas, y las dos son de información:
+
+1. **El modificador Control desaparece.** Una aplicación de pantalla completa no
+   puede ofrecer `Ctrl+S`, `Ctrl+Q` ni `Ctrl+C`, porque no puede distinguirlos de
+   `s`, `q` y `c`. No es que la combinación no llegue: llega, disfrazada de otra
+   tecla, que es peor — un atajo `Ctrl+X` se dispararía al escribir una `x` en un
+   campo de texto.
+2. **Dos teclas, un valor.** El tabulador y el retroceso son ambos `0x00`. En un
+   campo numérico da igual, y este programa lo aprovecha (`pantalla/teclas.zy`
+   trata las dos como «borrar»). En un formulario donde el tabulador saltase de
+   campo sería imposible: cada salto borraría un carácter.
+
+Y el valor en que colapsan, `0x00`, es el único que además **no se puede
+escribir** en Zymbol ([GAP-ZYB-010](#gap-zyb-010)), así que ni siquiera se puede
+comparar contra él sin salir del lenguaje.
+
+**Lo esperable** sería que `<<|` entregase la tecla sin traducir, y que una
+aplicación pudiera preguntar por el modificador. Mientras tanto, cualquier TUI
+escrita en Zymbol está limitada a teclas imprimibles, ESC y Enter.
+
+---
+
+## BUG-ZYB-007
+
+**`query_one` sin filas no devuelve el error blando que la documentación promete. `$!` nunca se dispara, y el programa revienta después y en otro sitio.**
+
+`GUIDE.md` § `std/db` dice: *«`query` returns an array of rows, `query_one` a
+single row (**or soft error**)»*. Así que la comprobación evidente —y la que la
+documentación prescribe— es `? fila$!`.
+
+```zymbol
+hay = bd::query_one("c", "SELECT id, n FROM t WHERE id = ?", (1,))
+>> hay$! ¶      // #0 — hay fila
+
+no = bd::query_one("c", "SELECT id, n FROM t WHERE id = ?", (99,))
+>> no$! ¶       // #0 — NO hay fila, y responde lo mismo
+```
+
+Sin filas devuelve `Unit`, exactamente igual que una columna `NULL`
+([GAP-ZYB-009](#gap-zyb-009)), y `Unit` no es un error. De modo que:
+
+```zymbol
+cuenta = al::cuenta_por_nombre(nombre)
+? cuenta$! {
+    >> "no existe esa cuenta" ¶      // ← esta rama NUNCA se toma
+    <~ 2
+}
+m = mon::obtener(cuenta.moneda)      // ← Runtime error: Cannot access member
+                                     //   'moneda' on non-tuple value
+```
+
+**El daño es que el fallo aparece lejos de la causa.** El mensaje no habla de
+filas ni de consultas: habla de una tupla, en una línea que está bien escrita.
+Quien lo lea buscará el error donde no está.
+
+**Dónde se pagó.** Estaba en la CLI **desde el primer día** y ninguna suite lo
+vio, porque todas consultan cosas que existen. `zybank anotar CuentaQueNoExiste …`
+respondía `Runtime error: Cannot access member 'moneda' on non-tuple value` en
+lugar de «No existe esa cuenta», que era el mensaje ya escrito, ya traducido a
+cuatro idiomas y muerto. Lo descubrió el TUI: al elegir una categoría de ajuste
+que aún no existía, la misma forma falló en un sitio nuevo.
+
+Corregido en el programa comprobando `es_nulo()` —la reflexión de tipo— en las
+nueve consultas que podían no encontrar nada. La corrección en el lenguaje es
+otra: o `query_one` devuelve el error blando que promete, o la documentación
+dice que devuelve `Unit` y `$!` deja de ser la comprobación indicada.
+
+---
+
+## BUG-ZYB-008
+
+**Una escritura al estado del módulo hecha dentro de `>>|` la ve quien la escribió, pero no otra función del mismo módulo. El tree-walker se queda con el valor viejo; la VM no.**
+
+Es la tercera divergencia de este log, y a diferencia de las otras dos **no se
+ha conseguido reducir a un caso mínimo**. Se registra con la evidencia que hay,
+que es concluyente aunque no sea corta, y con la lista de lo que ya se descartó
+— porque media reducción ahorrada a quien lo mire después vale más que una
+reproducción inventada.
+
+**Qué se observa.** `pantalla/tui.zy` guarda un aviso como estado del módulo. El
+bucle principal lo pinta y lo limpia:
+
+```zymbol
+>>| {
+    @:principal {
+        ...
+        _decir(alto - 1, ancho)      // otra función del módulo: LEE `aviso`
+        aviso = ""                   // el bloque anidado: ESCRIBE `aviso`
+        <<| t
+        ? t == 'x' { _borrar(...) }  // una función del módulo: ESCRIBE `aviso`
+    }
+}
+```
+
+Conducido por un pty con la secuencia `⏎ x s i q` — abrir, borrar, confirmar,
+cambiar de idioma, salir — instrumentando ambas funciones:
+
+| vuelta | tree-walker | VM de registros |
+|---|---|---|
+| 3 · `_borrar` pone el aviso | `_decir ve aviso=[Borrado] largo=7` | igual |
+| 3 · `correr` lo limpia | `tras-limpiar=[]` | igual |
+| **4 · `_decir` vuelve a leer** | **`aviso=[Borrado] largo=7`** | `aviso=[] largo=0` |
+
+En la vuelta 4 el tree-walker **repinta un aviso que ya se había borrado**. Y lo
+que hace el caso interesante: en esa misma vuelta, la función que escribió sí ve
+la cadena vacía — `correr` lee `""` y `_decir` lee `"Borrado"`, **a la vez, en el
+mismo módulo, sobre la misma variable**. No es que la escritura se pierda: es
+que dos funciones del mismo módulo ven dos valores.
+
+La escritura hecha desde una función (`_borrar`) sí se propaga en los dos
+motores. La que no se propaga es la del **bloque anidado**.
+
+**Reproducción.** `pruebas/verificación_tui.sh` la ejerce; a mano:
+
+```bash
+cd ZyBank
+python3 ../zyquality/tui/ptydrive.py zymbol run     zybank_tui.zy -- '\r' x s i q > tw.txt
+python3 ../zyquality/tui/ptydrive.py zymbol run --vm zybank_tui.zy -- '\r' x s i q > vm.txt
+grep -ao '38;5;214m' tw.txt | wc -l    # 2 — el aviso se pinta dos veces
+grep -ao '38;5;214m' vm.txt | wc -l    # 1
+```
+
+Cancelar el borrado (`x n i q`) lo reproduce igual, así que **no depende de que
+se borre nada**: basta con haber pasado por la confirmación.
+
+**Lo que NO lo reproduce**, comprobado uno por uno en los dos motores — seis
+casos mínimos, todos coincidentes:
+
+1. estado de módulo escrito por una función que además devuelve valor
+   (HLZ-SRP-001, que es lo primero que uno sospecha);
+2. estado escrito dentro de `? { }` y dentro de `@ { }`, incluso etiquetado;
+3. estado escrito dentro de `>>| { }` y leído por otra función acto seguido;
+4. lo mismo con una escritura previa hecha desde una función;
+5. lo mismo dentro de un bucle, con lectura y escritura en vueltas distintas;
+6. lo mismo con una lectura de teclado anidada en otro módulo, con su propio
+   bucle de lectura — que es la forma exacta de `campo::confirmar`.
+
+Ninguno diverge. Hace falta algo más de la aplicación real que estos seis no
+tienen, y encontrarlo es el trabajo que `LDV.md` § 6 llama *poor resolution*: el
+fallo señala una región, no una línea.
+
+**Consecuencia para la suite.** `pruebas/verificación_tui.sh` ya no puede exigir
+igualdad byte a byte entre los dos motores mientras esto siga abierto. Compara
+lo que es determinista y significativo —los saldos, que coinciden exactamente en
+los dos— y **reporta** la diferencia de repintado nombrando este hallazgo, en
+lugar de tumbar el gate por algo ya registrado. Es la misma división que hace
+`zyquality`: los goldens son la puerta, el consenso es un hallazgo.
+
+---
+
 # GAP
 
 ## GAP-ZYB-001
@@ -632,6 +817,66 @@ fallo silencioso, y en el mismo sitio donde uno cree estar comprobando algo.
 
 Lo mínimo sería documentarlo; lo razonable, un `$∅` o equivalente que pregunte
 directamente, dado que `$!` ya existe para la pregunta hermana.
+
+---
+
+## GAP-ZYB-010
+
+**No hay forma de escribir un carácter de control. Un campo de entrada necesita tres teclas y el lenguaje sabe escribir una.**
+
+Un campo de texto en modo crudo necesita ENTER para confirmar, RETROCESO para
+corregir y ESC para cancelar. `'\n'` se escribe; las otras dos, no.
+
+Las secuencias de escape son `\n \t \r \" \\ \{ \}` y ninguna más
+(`GUIDE.md` § "String Literals"). No hay `\e`, ni `\xNN`, ni `\uXXXX` — el
+documento dice explícitamente que `\uXXXX` no existe. En un literal de carácter
+una secuencia desconocida es un **error de análisis**, así que `'\e'` no compila.
+
+Tampoco hay salida por el número, que sería la vía natural:
+
+```zymbol
+c = 'a'
+>> ###c ¶      // Runtime error: ### requires a numeric value, got Char
+>> #|c| ¶      // "a" — devuelve el carácter como texto, no su punto de código
+```
+
+Es decir: **no se puede ir del carácter al número ni del número al carácter.**
+
+**El rodeo, que es el hallazgo.** Se sale del lenguaje:
+
+```zymbol
+_nul() { <~ (<\ "printf '\\000x'" \>)[1] }
+_esc() { <~ (<\ "printf '\\033'" \>)[1] }
+```
+
+Funciona —los caracteres fabricados así comparan correctamente con lo que
+`<<|` entrega— y es exactamente lo que `LDV.md` § 3.4 llama estado rojo: el
+programa solo puede expresar el concepto saliendo del lenguaje. Además arrastra
+que una aplicación de terminal deje de funcionar donde no haya `printf`, que es
+la misma dependencia de intérprete de órdenes que [GAP-ZYB-002](#gap-zyb-002)
+impone para leer la fecha, y por el mismo motivo: falta una primitiva.
+
+---
+
+## GAP-ZYB-011
+
+**Las flechas del teclado no se pueden usar sin perder la tecla ESC.**
+
+Una flecha manda tres bytes — `ESC`, `[`, `A` — y `<<|` los entrega en **tres
+lecturas separadas**. Para reconocerlas habría que leer la primera, ver que es
+ESC, y leer dos más. Pero entonces pulsar ESC *de verdad* deja el programa
+esperando dos teclas que no llegan.
+
+Sin lectura no bloqueante con espera —`<<|?` existe, pero devuelve
+inmediatamente y no permite decir «espera 50 ms por si viene el resto»— no hay
+forma de distinguir un ESC solo de un ESC que empieza una secuencia. Es el mismo
+problema que las bibliotecas de terminal resuelven con un temporizador, y aquí
+no hay temporizador que consultar.
+
+**Consecuencia.** Este programa navega con `j`/`k` en vez de flechas, y lo dice
+en el pie de cada pantalla. Es la convención de `vi` y no molesta a quien la
+conoce, pero es una elección forzada, no de diseño: una aplicación de escritorio
+no puede pedirle a alguien que aprenda `vi` para bajar por una lista.
 
 ---
 

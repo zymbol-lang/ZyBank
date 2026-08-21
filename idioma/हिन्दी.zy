@@ -85,7 +85,23 @@
             ("info.entradas",          "आवक"),
             ("info.salidas",           "जावक"),
             ("info.neto",              "शुद्ध"),
-            ("info.periodo",           "अवधि")
+            ("info.periodo",           "अवधि"),
+            ("cat.ingreso.ajuste",     "समायोजन (जमा)"),
+            ("cat.gasto.ajuste",       "समायोजन (नामे)"),
+            ("campo.nombre",           "नाम"),
+            ("acción.nuevo",           "नया"),
+            ("acción.editar",          "संपादन"),
+            ("acción.borrar",          "हटाएँ"),
+            ("acción.abonar",          "जमा"),
+            ("acción.descontar",       "नामे"),
+            ("acción.cuenta_nueva",    "नया खाता"),
+            ("msg.confirmar_borrado",  "यह लेनदेन हटाएँ?"),
+            ("msg.borrado",            "हटाया"),
+            ("msg.actualizado",        "अद्यतन किया"),
+            ("msg.cancelado",          "रद्द किया"),
+            ("msg.traspaso_fijo",      "स्थानांतरण पूरा हटाकर ही ठीक करें"),
+            ("msg.elige_categoría",    "श्रेणी चुनें"),
+            ("msg.cuenta_creada",      "खाता बनाया")
         ]
     }
 }

@@ -5,7 +5,7 @@ idiomas, sobre SQLite.
 
 Es un **proyecto LDV** (`interpreter/LDV.md`): una aplicación construida para
 averiguar qué no sabe decir todavía el lenguaje. El programa es el instrumento;
-el producto son los hallazgos. Hay diecinueve en [HALLAZGOS.md](HALLAZGOS.md), entre
+el producto son los hallazgos. Hay veinticuatro en [HALLAZGOS.md](HALLAZGOS.md), entre
 ellos **dos divergencias de comportamiento entre motores** —cada uno rompe una
 forma distinta de pasar una función entre módulos— y una tercera de
 diagnóstico, en un lenguaje cuyo gate declara cero divergencias sobre 616
@@ -37,13 +37,43 @@ Necesita un binario `zymbol` con `std/db` (compilado desde fuente, o Windows) y
 un DSN de ODBC llamado `zymbol_sqlite` — ver
 `zyquality/corpus/stdlib/README-odbc.md`.
 
+### A pantalla completa
+
+```bash
+zymbol run zybank_tui.zy
+```
+
+Es donde se opera el libro: dar de alta cuentas, anotar movimientos, corregirlos,
+borrarlos, y **abonar o descontar saldo**. Dos cosas existen solo aquí:
+
+- **La validación ocurre mientras se teclea.** El campo de importe no acepta una
+  letra —no la escribe— y el punto decimal solo entra si la moneda tiene
+  decimales: en pesos chilenos la tecla del punto no hace nada, en dólares admite
+  dos dígitos detrás y en dinares kuwaitíes tres. No hay un estado inválido que
+  corregir porque nunca llega a existir. Y mientras se teclea se ve el importe
+  formateado en su moneda: `1234` se lee `$1.234` en un campo CLP y `$12.34` en
+  uno USD, con las mismas pulsaciones.
+- **El idioma cambia en vivo.** La tecla `i` rota el idioma y con él se mueven
+  las etiquetas, los nombres de las categorías y la escritura de las cifras, sin
+  recargar nada.
+
+Teclas: `jk` mover · `⏎` abrir/volver · `n` nuevo · `e` editar · `x` borrar ·
+`+` abonar · `-` descontar · `c` cuenta nueva · `r` resumen · `i` idioma · `q` salir.
+No hay flechas, y no es por gusto: [GAP-ZYB-011](HALLAZGOS.md#gap-zyb-011).
+
+**Abonar y descontar son movimientos, no un saldo que cambia.** El saldo inicial
+es lo que había al abrir la cuenta y no vuelve a moverse; un ajuste deja su
+línea, con su fecha y su glosa. Un libro cuyo saldo cambia sin dejar rastro no es
+un libro de cuentas.
+
+### Por órdenes
+
 ```bash
 zymbol run zybank.zy iniciar                      # crea el esquema y siembra categorías
 zymbol run zybank.zy nueva Corriente CLP 500000   # una cuenta
 zymbol run zybank.zy anotar Corriente gasto.alimentación 25990 "Feria" 2026-08-01
 zymbol run zybank.zy cuentas
 zymbol run zybank.zy resumen Corriente 2026-08-01 2026-08-31
-zymbol run zybank_tui.zy                          # el navegador a pantalla completa
 ```
 
 **Los verbos se aceptan en los cuatro idiomas, siempre** — `zybank 口座`,
@@ -65,7 +95,7 @@ La configuración sigue una regla: **el archivo manda, la base recuerda.** El
 | `idioma/` | el despachador y cuatro catálogos (es · en · ja · hi) |
 | `presentación/` | columnas medidas con `std/term`, nunca con `$#` |
 | `interfaz/` | los verbos y la aplicación por órdenes |
-| `pantalla/` | el navegador a pantalla completa |
+| `pantalla/` | la aplicación a pantalla completa: constantes de tecla, campos de entrada, pantallas |
 | `pruebas/` | cinco suites, registradas en `zyquality/project/apps.toml` |
 
 ## Pruebas

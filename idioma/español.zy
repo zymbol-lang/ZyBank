@@ -100,7 +100,23 @@
             ("info.entradas",         "Entradas"),
             ("info.salidas",          "Salidas"),
             ("info.neto",             "Neto"),
-            ("info.periodo",          "Periodo")
+            ("info.periodo",          "Periodo"),
+            ("cat.ingreso.ajuste",     "Ajuste (abono)"),
+            ("cat.gasto.ajuste",       "Ajuste (cargo)"),
+            ("campo.nombre",           "Nombre"),
+            ("acción.nuevo",           "Nuevo"),
+            ("acción.editar",          "Editar"),
+            ("acción.borrar",          "Borrar"),
+            ("acción.abonar",          "Abonar"),
+            ("acción.descontar",       "Descontar"),
+            ("acción.cuenta_nueva",    "Cuenta nueva"),
+            ("msg.confirmar_borrado",  "¿Borrar este movimiento?"),
+            ("msg.borrado",            "Borrado"),
+            ("msg.actualizado",        "Actualizado"),
+            ("msg.cancelado",          "Cancelado"),
+            ("msg.traspaso_fijo",      "Un traspaso se corrige borrándolo entero"),
+            ("msg.elige_categoría",    "Elige categoría"),
+            ("msg.cuenta_creada",      "Cuenta creada")
         ]
     }
 }

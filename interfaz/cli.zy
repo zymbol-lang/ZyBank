@@ -88,7 +88,7 @@
 
     _moneda_de(nombre_cuenta) {
         f = al::cuenta_por_nombre(nombre_cuenta)
-        ? f$! { <~ mon::obtener(prefs["moneda"]) }
+        ? al::es_nulo(f) { <~ mon::obtener(prefs["moneda"]) }
         <~ mon::obtener(f.moneda)
     }
 
@@ -178,7 +178,7 @@
             <~ 2
         }
         cta = al::cuenta_por_nombre(args[2])
-        ? cta$! {
+        ? al::es_nulo(cta) {
             >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
             <~ 2
         }
@@ -186,7 +186,7 @@
         clave_cat = args[3]
         cat = al::categoría_por_clave(clave_cat)
         cat_id = 0
-        ? cat$! {
+        ? al::es_nulo(cat) {
             // Una categoría que no existe se CREA, con el grupo y
             // el tipo deducidos de su propia clave. Obligar a
             // declararla antes sería obligar a interrumpir lo que
@@ -246,11 +246,11 @@
         }
         o = al::cuenta_por_nombre(args[2])
         d = al::cuenta_por_nombre(args[3])
-        ? o$! {
+        ? al::es_nulo(o) {
             >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
             <~ 2
         }
-        ? d$! {
+        ? al::es_nulo(d) {
             >> idi::texto("msg.cuenta_no_existe") ": " args[3] ¶
             <~ 2
         }
@@ -306,7 +306,7 @@
         id = 0
         ? args$# >= 2 {
             c = al::cuenta_por_nombre(args[2])
-            ? c$! {
+            ? al::es_nulo(c) {
                 >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
                 <~ 2
             }
@@ -346,7 +346,7 @@
         id = 0
         ? args$# >= 2 {
             c = al::cuenta_por_nombre(args[2])
-            ? c$! {
+            ? al::es_nulo(c) {
                 >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
                 <~ 2
             }

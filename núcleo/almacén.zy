@@ -56,6 +56,10 @@
         // movimientos
         anotar
         movimientos
+        movimiento
+        actualizar
+        borrar
+        ajustar
         traspasar
         // saldos
         saldo
@@ -166,23 +170,34 @@
         <~ <\ "date +%F" \>
     }
 
-    // ¿Esta columna venía NULL?
+    // ¿Aquí no hay nada?
     //
-    // Un NULL de SQL llega como `Unit`. No es un error (`$!` da #0),
-    // no es igual a `""` ni a 0, y `"" v` sobre él ABORTA. La única
-    // forma de preguntarlo es destructurar la reflexión de tipo y
-    // mirar el segundo campo, que vale 0 cuando no hay valor.
+    // Responde por los DOS vacíos que devuelve `std/db`, que son el
+    // mismo valor: una columna que venía `NULL` y una consulta
+    // `query_one` que no encontró ninguna fila. Ambas dan `Unit`.
     //
-    // `GUIDE.md` documenta `null ↔ Unit` para `std/json` y no dice
-    // nada de `std/db`, donde una columna opcional es lo corriente.
-    // GAP-ZYB-009.
+    // Ninguna de las dos es un error blando: `$!` responde #0 para
+    // las dos. Eso importa porque `GUIDE.md` describe `query_one`
+    // como «a single row (or soft error)», así que la comprobación
+    // que la documentación indica —`? fila$!`— NUNCA detecta la
+    // fila ausente, y el programa sigue hasta romperse más adelante
+    // con «Cannot access member 'id' on non-tuple value», lejos de
+    // la línea que lo causó. Es BUG-ZYB-007, y también GAP-ZYB-009
+    // para el caso de la columna.
     //
-    // EN: did this column arrive NULL? A SQL NULL comes back as
-    // `Unit`: not an error, not equal to "" or 0, and `"" v` on it
-    // ABORTS. The only way to ask is to destructure the type
-    // reflection and read the second field, 0 when there is no
-    // value. `GUIDE.md` documents `null ↔ Unit` for `std/json` and
-    // says nothing for `std/db`. GAP-ZYB-009.
+    // La única forma de preguntarlo es destructurar la reflexión de
+    // tipo y mirar el segundo campo, que vale 0 cuando no hay valor.
+    // Tampoco vale comparar: `Unit` no es igual a `""` ni a 0, y
+    // `"" v` sobre él ABORTA.
+    //
+    // EN: is there nothing here? Answers for BOTH of `std/db`'s
+    // empties, which are one value: a column that arrived NULL, and
+    // a `query_one` that matched no row. Neither is a soft error —
+    // `$!` says #0 to both — which matters because `GUIDE.md`
+    // describes `query_one` as "a single row (or soft error)", so
+    // the check the documentation prescribes NEVER fires, and the
+    // program breaks later and elsewhere. BUG-ZYB-007, and
+    // GAP-ZYB-009 for the column case.
     es_nulo(v) {
         (_t, hay, _val) = v#?
         <~ hay == 0
@@ -281,6 +296,107 @@
                          LEFT JOIN categorías c ON c.id = m.categoría
                          WHERE m.cuenta = ?
                          ORDER BY m.fecha DESC, m.id DESC LIMIT ?", (cuenta_id, límite))
+    }
+
+    movimiento(id) {
+        <~ bd::query_one(nombre_conexión,
+            "SELECT m.id, m.fecha, m.cuenta, m.monto, m.glosa, m.traspaso,
+                    c.clave AS categoría, a.nombre AS cuenta_nombre, a.moneda AS moneda
+             FROM movimientos m
+             JOIN cuentas a ON a.id = m.cuenta
+             LEFT JOIN categorías c ON c.id = m.categoría
+             WHERE m.id = ?", (id,))
+    }
+
+    // Corregir un asiento ya escrito.
+    //
+    // Se corrige en su sitio y no se anula con un contra-asiento,
+    // que es lo que haría una contabilidad formal. La diferencia
+    // está en para qué es este libro: alguien que apunta sus gastos
+    // se equivoca al teclear y quiere arreglarlo, no dejar
+    // constancia de que se equivocó. Un libro que hay que auditar
+    // necesitaría lo contrario, y entonces esta función tendría que
+    // escribir el asiento inverso en lugar de un UPDATE.
+    //
+    // Los dos asientos de un traspaso NO se editan por aquí: cada
+    // uno es la mitad de algo, y cambiar una mitad deja la otra
+    // mintiendo. Se rechaza en vez de partir el par.
+    //
+    // EN: correcting an entry already written — in place, not by a
+    // reversing entry. Someone keeping their own expenses mistyped
+    // and wants it fixed, not a record that they mistyped; a ledger
+    // meant to be audited would need the opposite. The two legs of a
+    // transfer are NOT editable here: changing one half leaves the
+    // other lying, so it is refused rather than split.
+    actualizar(id, fecha, categoría_id, monto, glosa) {
+        c = nombre_conexión
+        actual = movimiento(id)
+        ? es_nulo(actual) { <~ (#0, "no_existe") }
+        ? !es_nulo(actual.traspaso) { <~ (#0, "traspaso") }
+        r = bd::exec(c,
+            "UPDATE movimientos SET fecha = ?, categoría = ?, monto = ?, glosa = ?
+             WHERE id = ?", (fecha, categoría_id, monto, glosa, id))
+        ? r$! { <~ (#0, r) }
+        <~ (#1, "")
+    }
+
+    // Borrar. Un traspaso se borra ENTERO — sus dos asientos — o no
+    // se borra: media transferencia no es un estado que la base
+    // pueda tener, y eso vale igual al deshacerla que al hacerla.
+    // EN: deleting. A transfer goes WHOLE — both legs — or not at
+    // all: half a transfer is not a state the database may hold,
+    // and that holds for undoing it as much as for doing it.
+    borrar(id) {
+        c = nombre_conexión
+        actual = movimiento(id)
+        ? es_nulo(actual) { <~ (#0, "no_existe") }
+        ? !es_nulo(actual.traspaso) {
+            r = bd::exec(c, "DELETE FROM movimientos WHERE traspaso = ?", (actual.traspaso,))
+            ? r$! { <~ (#0, r) }
+            <~ (#1, "traspaso_completo")
+        }
+        r = bd::exec(c, "DELETE FROM movimientos WHERE id = ?", (id,))
+        ? r$! { <~ (#0, r) }
+        <~ (#1, "")
+    }
+
+    // Abonar o descontar saldo.
+    //
+    // Es un movimiento, no un cambio del saldo. La diferencia
+    // importa: `saldo_inicial` es lo que había cuando se abrió la
+    // cuenta y no vuelve a moverse nunca, así que el saldo de hoy
+    // siempre es esa cifra más la suma de lo anotado. Si un ajuste
+    // tocara `saldo_inicial`, el saldo cambiaría sin que ninguna
+    // línea lo explicara — y un libro de cuentas donde el saldo
+    // cambia sin dejar rastro no es un libro de cuentas.
+    //
+    // El signo lo trae el llamante: positivo abona, negativo
+    // descuenta.
+    //
+    // EN: crediting or debiting is a MOVEMENT, not a change of
+    // balance. `saldo_inicial` is what was there when the account
+    // was opened and never moves again, so today's balance is
+    // always that figure plus the sum of what was recorded. If an
+    // adjustment touched `saldo_inicial` the balance would change
+    // with no line explaining it — and a ledger whose balance moves
+    // without a trace is not a ledger. Sign comes from the caller.
+    ajustar(fecha, cuenta_id, monto, glosa) {
+        c = nombre_conexión
+        clave = "ingreso.ajuste"
+        tipo = "ingreso"
+        ? monto < 0 {
+            clave = "gasto.ajuste"
+            tipo = "gasto"
+        }
+        cat = categoría_por_clave(clave)
+        cat_id = 0
+        ? es_nulo(cat) {
+            (hecha, nid) = crear_categoría(clave, tipo ".otros", tipo)
+            ? !hecha { <~ (#0, nid) }
+            cat_id = nid
+        }
+        _ { cat_id = cat.id }
+        <~ anotar(fecha, cuenta_id, cat_id, monto, glosa)
     }
 
     // Un traspaso son DOS asientos que viven o mueren juntos. Es la
