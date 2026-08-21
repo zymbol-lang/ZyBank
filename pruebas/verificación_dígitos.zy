@@ -10,31 +10,33 @@
 //    InScript teclea U+0966 y no U+0030; dar por hecho el ASCII es
 //    dar por hecho un teclado.
 //
-// 2. LAS TABLAS SE COMPRUEBAN CONTRA EL PROPIO LENGUAJE. Zymbol no
-//    deja preguntar si un carácter es un dígito, así que
-//    `pantalla/teclas.zy` lleva trece tablas escritas a mano
-//    (GAP-ZYB-012) — y una tabla escrita a mano con caracteres que
-//    nadie de este equipo sabe leer de un vistazo es exactamente el
-//    sitio donde se cuela un carácter equivocado sin que nadie lo
-//    note nunca.
+// 2. SE COMPRUEBA LA PREMISA, NO UNA COPIA. `pantalla/teclas.zy`
+//    lee un dígito restando: `##!t` menos el cero de su escritura.
+//    Eso se sostiene sobre dos supuestos, y los dos se verifican
+//    aquí contra el propio lenguaje, que sabe ESCRIBIR las 69
+//    escrituras con un mode-switch:
 //
-//    Aquí se le pide al lenguaje que escriba los diez dígitos de
-//    cada escritura —eso sí sabe hacerlo, con `#০৯#`— y se comparan
-//    con la tabla. Si alguien copia mal un carácter, esta suite lo
-//    dice; sin ella, el error solo aparecería el día que alguien
-//    con ese teclado intentara teclear justo ese dígito.
+//      a) las diez cifras de una escritura ocupan diez puntos de
+//         código SEGUIDOS — si alguna escritura no lo cumpliera, la
+//         resta daría un valor equivocado en silencio;
+//      b) el cero declarado en el módulo es el cero que el lenguaje
+//         escribe.
+//
+//    Una tabla de números mal copiada la ve cualquiera; lo que no
+//    se ve es que un bloque de Unicode no sea contiguo. Por eso lo
+//    que se comprueba es (a) y no la ortografía de trece glifos.
 //
 //   zymbol run pruebas/verificación_dígitos.zy
 //
 // EN: pruebas/verificación_dígitos.zy — a digit is not "0".."9".
 // Recognition is NUMERIC: «७», «৭», «௭», «٧» and «۷» are all seven.
-// And the thirteen hand-written tables in `pantalla/teclas.zy` are
-// checked against the language itself, which can WRITE each script
-// even though it cannot be asked whether a character is a digit
-// (GAP-ZYB-012). A hand-written table of characters nobody on the
-// team reads at a glance is exactly where a wrong one hides forever;
-// without this suite it would surface only when someone with that
-// keyboard typed that very digit.
+// And what is checked is the PREMISE, not a copy: `teclas.zy` reads
+// a digit by subtracting its script's zero from `##!t`, which rests
+// on (a) each script's ten digits occupying ten CONSECUTIVE code
+// points and (b) the declared zero being the one the language
+// writes. Both are verified here against the language's own numeral
+// mode-switch. A mistyped number is visible to anyone; a
+// non-contiguous Unicode block is not.
 // ============================================================
 
 <# ../pantalla/teclas => k
@@ -50,53 +52,70 @@ igual(qué, dado, esperado) {
     <~ 1
 }
 
+// El cero de la escritura ACTIVA, o -1 si sus diez cifras no son
+// diez puntos de código seguidos — que es exactamente la premisa de
+// la que depende leer un dígito restando.
+//
 // El lenguaje escribe 1234567890 en el modo activo; se reordena a
-// 0..9, que es el orden de las tablas.
-// EN: the language writes 1234567890 in the active mode; reordered
-// to 0..9, the tables' own order.
-del_lenguaje() {
+// 0..9, que es el orden natural.
+//
+// EN: the ACTIVE script's zero, or -1 if its ten digits are not ten
+// consecutive code points — the very premise the subtraction rests
+// on. The language writes 1234567890 in the active mode; reordered
+// to 0..9.
+cero_activo() {
     n = 1234567890
     d = "" n
-    <~ d$[10..10] d$[1..9]
-}
+    cifras = d$[10..10] d$[1..9]
 
-// La tabla que declara el módulo, por nombre.
-// EN: the module's declared table, by name.
-declarada(nombre) {
-    @ e:k::escrituras() {
-        (n, tabla) = e
-        ? n == nombre { <~ tabla }
+    cero = 0 - 1
+    i = 0
+    @ c:cifras {
+        punto = ##!c
+        ? i == 0 { cero = punto }
+        ? punto <> (cero + i) { <~ 0 - 1 }
+        i = i + 1
     }
-    <~ "«no declarada»"
+    <~ cero
 }
 
->> "== cada tabla, contra lo que el lenguaje escribe ==" ¶
+// El cero que declara el módulo, por nombre.
+// EN: the module's declared zero, by name.
+declarado(nombre) {
+    @ e:k::escrituras() {
+        (n, cero) = e
+        ? n == nombre { <~ cero }
+    }
+    <~ 0 - 2
+}
+
+>> "== cada cero declarado, contra lo que el lenguaje escribe ==" ¶
 #०९#
-fallos = fallos + igual("devanagari", declarada("devanagari"), del_lenguaje())
+fallos = fallos + igual("devanagari", cero_activo(), declarado("devanagari"))
 #০৯#
-fallos = fallos + igual("bengalí",    declarada("bengalí"),    del_lenguaje())
+fallos = fallos + igual("bengalí",    cero_activo(), declarado("bengalí"))
 #੦੯#
-fallos = fallos + igual("gurmukhi",   declarada("gurmukhi"),   del_lenguaje())
+fallos = fallos + igual("gurmukhi",   cero_activo(), declarado("gurmukhi"))
 #૦૯#
-fallos = fallos + igual("gujarati",   declarada("gujarati"),   del_lenguaje())
+fallos = fallos + igual("gujarati",   cero_activo(), declarado("gujarati"))
 #୦୯#
-fallos = fallos + igual("oriya",      declarada("oriya"),      del_lenguaje())
+fallos = fallos + igual("oriya",      cero_activo(), declarado("oriya"))
 #௦௯#
-fallos = fallos + igual("tamil",      declarada("tamil"),      del_lenguaje())
+fallos = fallos + igual("tamil",      cero_activo(), declarado("tamil"))
 #౦౯#
-fallos = fallos + igual("telugu",     declarada("telugu"),     del_lenguaje())
+fallos = fallos + igual("telugu",     cero_activo(), declarado("telugu"))
 #೦೯#
-fallos = fallos + igual("kannada",    declarada("kannada"),    del_lenguaje())
+fallos = fallos + igual("kannada",    cero_activo(), declarado("kannada"))
 #൦൯#
-fallos = fallos + igual("malayalam",  declarada("malayalam"),  del_lenguaje())
+fallos = fallos + igual("malayalam",  cero_activo(), declarado("malayalam"))
 #๐๙#
-fallos = fallos + igual("tailandés",  declarada("tailandés"),  del_lenguaje())
+fallos = fallos + igual("tailandés",  cero_activo(), declarado("tailandés"))
 #٠٩#
-fallos = fallos + igual("árabe",      declarada("árabe"),      del_lenguaje())
+fallos = fallos + igual("árabe",      cero_activo(), declarado("árabe"))
 #۰۹#
-fallos = fallos + igual("persa",      declarada("persa"),      del_lenguaje())
+fallos = fallos + igual("persa",      cero_activo(), declarado("persa"))
 #09#
-fallos = fallos + igual("ascii",      declarada("ascii"),      del_lenguaje())
+fallos = fallos + igual("ascii",      cero_activo(), declarado("ascii"))
 
 >> "== el siete, en seis escrituras ==" ¶
 fallos = fallos + igual("ASCII '7'",      k::dígito_ascii('7'), "7")
@@ -122,12 +141,32 @@ fallos = fallos + igual("letra bengalí",  k::dígito_ascii('ক'), "")
 // not 75 — so refusing it is right.
 fallos = fallos + igual("numeral kanji 七", k::dígito_ascii('七'), "")
 fallos = fallos + igual("punto",          k::dígito_ascii('.'), "")
+// El carácter que precede al cero devanagari y el que sigue al
+// nueve. Una resta sin cota por arriba o por abajo aceptaría uno de
+// los dos, y ningún dígito de ninguna escritura lo delataría.
+// EN: the character just below Devanagari zero and just above nine.
+// An unbounded subtraction would accept one of them, and no digit of
+// any script would reveal it.
+fallos = fallos + igual("justo antes del ० (U+0965)", k::dígito_ascii(0d2405), "")
+fallos = fallos + igual("justo después del ९ (U+0970)", k::dígito_ascii(0d2416), "")
 
 >> "== separadores decimales, incluido el árabe ==" ¶
 fallos = fallos + igual("punto",      k::es_separador('.'), #1)
 fallos = fallos + igual("coma",       k::es_separador(','), #1)
 fallos = fallos + igual("árabe ٫",    k::es_separador('٫'), #1)
 fallos = fallos + igual("un dígito no lo es", k::es_separador('5'), #0)
+
+>> "== las teclas de control, por su código ==" ¶
+// Lo que llega por `<<|` al pulsarlas: RETROCESO y TABULADOR
+// colapsan los dos en NUL (BUG-ZYB-006), ESC llega como 27 y ENTER
+// como salto de línea aunque el teclado mande retorno de carro.
+// EN: what `<<|` delivers: backspace and Tab both collapse to NUL
+// (BUG-ZYB-006), ESC arrives as 27 and Enter as a line feed even
+// though the keyboard sends a carriage return.
+fallos = fallos + igual("borrar es NUL",   k::es_borrar(0d0), #1)
+fallos = fallos + igual("escapar es 27",   k::es_escapar(0d27), #1)
+fallos = fallos + igual("entrar es 10",    k::es_entrar(0d10), #1)
+fallos = fallos + igual("un dígito no es escapar", k::es_escapar('5'), #0)
 
 >> "== transliterar sigue a la escritura activa ==" ¶
 fallos = fallos + igual("ASCII", k::transliterar("12.50"), "12.50")

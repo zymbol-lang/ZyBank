@@ -1,4 +1,4 @@
-== cada tabla, contra lo que el lenguaje escribe ==
+== cada cero declarado, contra lo que el lenguaje escribe ==
 ok   devanagari
 ok   bengalí
 ok   gurmukhi
@@ -30,11 +30,18 @@ ok   letra devanagari
 ok   letra bengalí
 ok   numeral kanji 七
 ok   punto
+ok   justo antes del ० (U+0965)
+ok   justo después del ९ (U+0970)
 == separadores decimales, incluido el árabe ==
 ok   punto
 ok   coma
 ok   árabe ٫
 ok   un dígito no lo es
+== las teclas de control, por su código ==
+ok   borrar es NUL
+ok   escapar es 27
+ok   entrar es 10
+ok   un dígito no es escapar
 == transliterar sigue a la escritura activa ==
 ok   ASCII
 ok   devanagari
