@@ -70,6 +70,9 @@
         escapar
         entrar
         es_borrar
+        es_tabular
+        es_control
+        tabular
         es_escapar
         es_entrar
         es_arriba
@@ -85,23 +88,47 @@
         transliterar
     }
 
-    // El retroceso del teclado envía DEL (0x7f) y llega como NUL
-    // (0x00). El tabulador (0x09) llega TAMBIÉN como NUL: las dos
-    // teclas colapsan en un mismo valor y son indistinguibles
-    // (BUG-ZYB-006). En un campo numérico el tabulador no significa
-    // nada, así que tratar ambas como «borrar» no pierde nada aquí
-    // — un editor de texto de verdad no podría vivir con esto.
+    // Cada tecla llega ahora con el valor que el terminal manda de
+    // verdad: el retroceso es DEL (0d127) y el tabulador es 0d9.
     //
-    // EN: backspace sends DEL (0x7f) and arrives as NUL (0x00); Tab
-    // (0x09) ALSO arrives as NUL. The two collapse into one value
-    // (BUG-ZYB-006). In a numeric field Tab means nothing.
-    borrar()  { <~ 0d0 }
+    // Hasta la corrección de BUG-ZYB-006 las dos colapsaban en NUL
+    // (0d0) y eran indistinguibles, así que este módulo trataba las
+    // dos como «borrar» — en un campo numérico el tabulador no
+    // significa nada y no se perdía nada. Ya no hace falta mentir:
+    // el tabulador es una tecla que este campo simplemente ignora.
+    //
+    // Con el modificador Control ocurría lo mismo al revés: Ctrl+A
+    // llegaba como la letra `a` y un atajo se habría disparado al
+    // teclear la letra. Hoy Ctrl+letra es su carácter de control
+    // (Ctrl+A es 0d1), de modo que `es_control` es una pregunta que
+    // se puede hacer, y la respuesta de este campo es ignorarlo.
+    //
+    // EN: every key now carries the value the terminal actually
+    // sends — backspace is DEL (0d127), Tab is 0d9. Until
+    // BUG-ZYB-006 was fixed both collapsed into NUL and this module
+    // treated the pair as "delete", which cost nothing in a numeric
+    // field. Ctrl+letter arrived as the letter; it is now its
+    // control character, so `es_control` is answerable, and this
+    // field's answer is to ignore it.
+    borrar()  { <~ 0d127 }
     escapar() { <~ 0d27 }
     entrar()  { <~ '\n' }
+    tabular() { <~ 0d9 }
 
-    es_borrar(t)  { <~ t == 0d0 }
+    es_borrar(t)  { <~ t == 0d127 }
     es_escapar(t) { <~ t == 0d27 }
     es_entrar(t)  { <~ t == '\n' }
+    es_tabular(t) { <~ t == 0d9 }
+
+    // Un carácter de control es todo lo que va por debajo del
+    // espacio, más DEL. Enter, ESC y el tabulador entran en ese
+    // grupo y tienen pregunta propia arriba, así que quien use
+    // `es_control` debe preguntar por ellas antes.
+    //
+    // EN: a control character is anything below space, plus DEL.
+    // Enter, ESC and Tab are in that set and have their own
+    // predicates above; ask those first.
+    es_control(t) { <~ (##!t < 32) || (##!t == 127) }
 
     // ── Las flechas ──────────────────────────────────────────
     //

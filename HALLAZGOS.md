@@ -12,9 +12,16 @@
 > `BUG-001`) desde la primera entrada. चतुरङ्गम् fue el primero en adoptarla; este
 > es el segundo, y además con el nombre de archivo que el decálogo pide.
 >
-> **Estado del ciclo.** ROJO. Ningún hallazgo está cerrado: cerrar exige un
-> cambio en el lenguaje o un rechazo razonado, y esa decisión no es de quien
-> escribe la aplicación.
+> **Estado del ciclo.** En revisión desde el 2026-08-21. **Los diez BUG están
+> cerrados**, más BUG-ZYB-009 y BUG-ZYB-010, que aparecieron durante la propia
+> revisión, y el gate verde después de cada uno: `zyq suite` da *all gates
+> pass*, con 633 archivos de corpus, **0 divergencias** entre los tres motores y
+> ningún retroceso de rendimiento. Queda abierto BUG-ZYB-011 —que es una
+> pregunta de diseño, no un fallo— y las categorías GAP, ERROR e IDEA.
+>
+> Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
+> es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
+> el lenguaje, hallazgo por hallazgo.
 
 ---
 
@@ -33,7 +40,7 @@ científico, un auditor de código y dos juegos de tablero. Ninguno tenía:
 | **datos que sobreviven al idioma** | lo guardado son claves; los nombres se traducen al mostrarse, y una base creada en japonés se lee en español |
 | **configuración con precedencia** | archivo JSON sobre lo recordado en la base |
 
-De los veinticinco hallazgos —8 BUG, 12 GAP, 3 ERROR, 2 IDEA— la mitad larga sale
+De los veintinueve hallazgos —11 BUG, 12 GAP, 4 ERROR, 2 IDEA— la mitad larga sale
 de esas intersecciones y no de una característica aislada, que es el argumento
 de `LDV.md` § 4 en concreto. Los dos peores lo dejan claro: pasar una función
 entre módulos rompe en el tree-walker de una manera
@@ -51,8 +58,17 @@ teclado pierde el modificador Control y colapsa dos teclas en una
 ([BUG-ZYB-006](#bug-zyb-006)) y el tree-walker repinta un estado que ya se
 había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
 
-**Tres** hallazgos de esta lista resultaron ser **falsos**, y merecen decirse
-aquí antes que en su ficha. [GAP-ZYB-010](#gap-zyb-010) y
+**Cuatro** hallazgos de esta lista resultaron ser **falsos o mal enunciados**, y
+merecen decirse aquí antes que en su ficha. El cuarto es
+[BUG-ZYB-008](#bug-zyb-008), y no era falso sino **mal localizado**: decía que el
+problema estaba en escribir dentro de `>>|`, y no tenía que ver con `>>|`, ni con
+el teclado, ni con la pantalla completa. El caso mínimo son doce líneas de dos
+funciones y una variable. Lo interesante es *por qué* se localizó mal: la
+evidencia disponible —una interfaz de pantalla completa— admitía dos
+explicaciones, y se eligió la que señalaba al constructo raro en vez de a la
+llamada corriente. Los seis casos mínimos que se escribieron después salieron
+todos de esa hipótesis, y ninguno la contradijo porque ninguno la ponía a
+prueba. [GAP-ZYB-010](#gap-zyb-010) y
 [GAP-ZYB-012](#gap-zyb-012) sostenían que no se puede ir de un carácter a su
 número ni al revés. Sí se puede — `0d27` es ESC y `##!'७'` es 2413 — y los dos
 salieron del mismo experimento incompleto: se probaron `###` y `#|…|`, y no
@@ -89,14 +105,17 @@ teclado.
 
 | ID | Tipo | Módulo | Contexto | Estado |
 |----|------|--------|----------|--------|
-| [BUG-ZYB-001](#bug-zyb-001) | BUG | intérprete (TW) | una lambda pierde los alias de módulo al invocarse dentro de otro módulo — **TW falla, VM y JS no** | abierto |
-| [BUG-ZYB-002](#bug-zyb-002) | BUG | gramática / los 3 motores | `d[k]$~ "" v` asigna `""` y **descarta `v` sin decir nada** | abierto |
-| [BUG-ZYB-003](#bug-zyb-003) | BUG | errores blandos | componer un mensaje con un error blando **aborta el programa** | abierto |
-| [BUG-ZYB-004](#bug-zyb-004) | BUG | resolución de módulos | un `<# ../x` funciona o no **según cómo se nombre el archivo** al ejecutarlo | abierto |
-| [BUG-ZYB-005](#bug-zyb-005) | BUG | compilador (VM) | pasar una función **de un módulo** a otro módulo funciona en TW y JS, y **falla en la VM** | abierto |
-| [BUG-ZYB-006](#bug-zyb-006) | BUG | entrada de teclado | `<<|` entrega Ctrl+letra **como la letra**, y colapsa Tab y retroceso en un mismo valor | abierto |
-| [BUG-ZYB-007](#bug-zyb-007) | BUG | `std/db` | `query_one` sin filas **no da el error blando que la documentación promete**; `$!` nunca se dispara | abierto |
-| [BUG-ZYB-008](#bug-zyb-008) | BUG | estado de módulo (TW) | escribir estado del módulo dentro de `>>|` **no lo ve otra función del mismo módulo** — TW conserva el valor viejo, la VM no | abierto · sin reducir |
+| [BUG-ZYB-001](#bug-zyb-001) | BUG | intérprete (TW) | una lambda pierde los alias de módulo al invocarse dentro de otro módulo — **TW falla, VM y JS no** | **corregido** · v0.0.9 |
+| [BUG-ZYB-002](#bug-zyb-002) | BUG | gramática / los 3 motores | `d[k]$~ "" v` asigna `""` y **descarta `v` sin decir nada** | **corregido** · v0.0.9 |
+| [BUG-ZYB-003](#bug-zyb-003) | BUG | errores blandos | componer un mensaje con un error blando **aborta el programa** — solo el TW | **corregido** · v0.0.9 |
+| [BUG-ZYB-004](#bug-zyb-004) | BUG | resolución de módulos | un `<# ../x` funciona o no **según cómo se nombre el archivo** al ejecutarlo | **corregido** · v0.0.9 |
+| [BUG-ZYB-005](#bug-zyb-005) | BUG | compilador (VM) | pasar una función **de un módulo** a otro módulo funciona en TW y JS, y **falla en la VM** | **corregido** · v0.0.9 |
+| [BUG-ZYB-006](#bug-zyb-006) | BUG | entrada de teclado | `<<|` entrega Ctrl+letra **como la letra**, y colapsa Tab y retroceso en un mismo valor | **corregido** · v0.0.9 |
+| [BUG-ZYB-007](#bug-zyb-007) | BUG | `std/db` | `query_one` sin filas **no da el error blando que la documentación promete**; `$!` nunca se dispara | **corregido** · v0.0.9 |
+| [BUG-ZYB-008](#bug-zyb-008) | BUG | estado de módulo (TW) | el estado del módulo leído **a través de una función que no lo nombra** da el valor anterior — TW sí, VM y JS no. No tenía que ver con `>>|` | **corregido** · v0.0.9 (MM-12) |
+| [BUG-ZYB-009](#bug-zyb-009) | BUG | errores (TW) | `$!!` dentro de un `!?` **se captura como excepción** — TW sí, VM y JS no, y la documentación da la razón a estos dos | **corregido** · v0.0.9 |
+| [BUG-ZYB-010](#bug-zyb-010) | BUG | errores (TW y VM) | un `:>` (finally) **no se ejecuta entero** cuando el bloque `!?` retorna: el TW se comía media sentencia, la VM se lo saltaba del todo | **corregido** · v0.0.9 |
+| [BUG-ZYB-011](#bug-zyb-011) | BUG | errores (JS) | un `<~` escrito **dentro** de un `:>` retorna desde ahí en los dos motores Rust y se ignora en el del navegador | abierto |
 | [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | no hay precisión decimal en tiempo de ejecución ni relleno de ceros | abierto |
 | [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes | abierto |
 | [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío | abierto |
@@ -112,6 +131,7 @@ teclado.
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico | abierto |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | abierto |
+| [ERROR-ZYB-004](#error-zyb-004) | ERROR | `check` / analizador | `zymbol check` **rechaza** un `<# ../lib/util` que `zymbol run` ejecuta sin problema: compone el nombre esperado uniendo la ruta con `_` (`lib_util`) | abierto |
 | [IDEA-ZYB-001](#idea-zyb-001) | IDEA | doctrina i18n | el formato numérico es un cuarto eje que `USERAPPI18N.md` no cubre | propuesta |
 | [IDEA-ZYB-002](#idea-zyb-002) | IDEA | doctrina | el dinero como entero + exponente merece ser doctrina escrita | propuesta |
 
@@ -126,6 +146,16 @@ ejecutó en los tres con `./zyq show`.
 ## BUG-ZYB-001
 
 **Una lambda pierde los alias de módulo cuando se invoca dentro de otro módulo. El tree-walker falla; la VM y el motor del navegador no.**
+
+> **CORREGIDO** en v0.0.9. Una lambda lleva ahora los alias del ámbito donde se
+> escribió, exactamente como ya hacía una función con nombre: el mecanismo
+> existía y estaba cerrado con `if func.is_named_fn`, y las lambdas se creaban
+> con el mapa vacío. Congelar los alias en la definición es seguro **por
+> construcción**, porque el parser rechaza un `<#` escrito después de cualquier
+> sentencia: cuando se evalúa una lambda, todos los imports del archivo ya
+> están dentro. El mapa va tras un `Rc`, así que una lambda creada en un bucle
+> cuesta un contador, no una copia. Casos en
+> `corpus/modules_scope/zyb/`, los tres de la tabla de abajo.
 
 Es una divergencia entre motores, en un lenguaje cuyo gate declara **cero**
 divergencias sobre 614 archivos de corpus. No estaba cubierta porque hacen falta
@@ -191,6 +221,23 @@ dos son los que impiden que el arreglo rompa lo que ya funcionaba.
 
 **`d[k]$~ "" v` asigna la cadena vacía y descarta `v`, sin error, sin aviso y en los tres motores.**
 
+> **CORREGIDO** en v0.0.9, en los tres. El valor de `$~` se analiza ahora como
+> una expresión completa —yuxtaposición incluida—, que es lo que acepta el lado
+> derecho de `=`, porque `d[k]$~ v` **es** una asignación: es como se escribe
+> dentro de una colección. Antes se tomaba un solo postfix y el resto de la
+> línea quedaba suelto. De paso funcionan `d[k]$~ 40 + 2` y
+> `d[k]$~ "pre" v "post"`, que antes fallaban. Caso en
+> `corpus/collections/dict_update_yuxtaposicion.zy`.
+>
+> **Corrección al enunciado de abajo: `$+` nunca fue el contraejemplo.** No
+> acepta la yuxtaposición en su operando derecho, y nunca la aceptó. En
+> `t = s$+ "" v` quien concatena es la **asignación**, no el `$+`; sobre un
+> arreglo de enteros, `a$+ "" v` sigue fallando por el `""` a secas. La
+> asimetría real no era entre dos operadores `$`, sino entre una **asignación**
+> y una **sentencia de edición** — y es la misma que [GAP-ZYB-007](#gap-zyb-007)
+> describe por el lado de los argumentos de llamada. La prueba original no lo vio
+> porque estaba escrita dentro de un `>>`, que yuxtapone por su cuenta.
+
 **Reproducción.**
 
 ```zymbol
@@ -234,6 +281,15 @@ en encontrarlo que en escribir el módulo.
 ## BUG-ZYB-003
 
 **Componer un mensaje con un error blando aborta el programa. `>>` sí sabe imprimirlo.**
+
+> **CORREGIDO** en v0.0.9. **Y era una divergencia, no un fallo de los tres**:
+> la VM de registros y el motor del navegador ya concatenaban el error sin
+> problema; solo el tree-walker abortaba. Eso hizo el arreglo trivial —no había
+> nada que diseñar, solo que el tree-walker hiciera lo que los otros dos ya
+> hacían— y hace la ficha original inexacta al presentarlo como propio del
+> lenguaje entero. Caso en `corpus/errors/catchable/error_en_cadena.zy`, con el
+> error construido a partir de un índice fuera de rango para que el mensaje sea
+> el mismo en toda plataforma.
 
 `GUIDE.md` § `std/db` promete que un fallo de SQL devuelve *«un error blando
 `##DB(...)` comprobable con `$!` y capturable con `!? … :! ##DB`»*. La promesa
@@ -290,6 +346,22 @@ manejo de errores.
 
 **Un `<# ../módulo` se resuelve o no según cómo se nombre el archivo en la línea de órdenes. Y falla con tres mensajes distintos.**
 
+> **CORREGIDO** en v0.0.9, en `ModulePath::resolve_from` — la regla única, así
+> que el tree-walker, el analizador semántico y el compilador de la VM se
+> arreglaron a la vez. Salir de un nombre que **no es** un nombre de directorio
+> añade ahora `..` en vez de hacer `pop`: `parent()` de `prog.zy` es `""`, y
+> `PathBuf::pop` sobre `""` devuelve `false`; con `./prog.zy` es `"."`, donde
+> `pop` sí funciona y **se traga el `../` en silencio**, que era el caso peor.
+> Las rutas relativas siguen siéndolo, para que ningún diagnóstico —ni ningún
+> golden que lo grabe— lleve dentro una ruta absoluta que cambia según la
+> máquina. Cuatro pruebas unitarias en `zymbol-ast/src/modules.rs`; el corpus no
+> puede cubrir esto, porque `zyq` invoca todos los archivos igual.
+>
+> **Corrección al enunciado: la ruta absoluta sí funcionaba.** El
+> `failed to read file` del añadido de abajo era la variable `$PWD` de la prueba
+> mal expandida, como el propio texto sospechaba. Comprobado con la ruta
+> absoluta real: da `2`.
+
 **Reproducción.** Dos directorios hermanos y un import que sube un nivel:
 
 ```zymbol
@@ -345,6 +417,13 @@ proyecto y un comentario que explica por qué no puede estar donde estaría.
 ## BUG-ZYB-005
 
 **Pasar como valor una función definida dentro de un módulo, a otro módulo, falla en la VM. El tree-walker y el motor del navegador la ejecutan.**
+
+> **CORREGIDO** en v0.0.9. El compilador consultaba `module_scope` al compilar
+> una **llamada** y no al compilar el mismo nombre como **valor**: esa asimetría
+> era todo el fallo. Llamar a `_ayudante(x)` funcionaba y pasar `_ayudante` no.
+> Caso en `corpus/modules_scope/zyb/fn_de_modulo_cruzando.zy`, junto al de
+> [BUG-ZYB-001](#bug-zyb-001) y al tercero de la tabla —el que ya funcionaba—,
+> que está ahí para que ningún arreglo lo rompa.
 
 Es el **simétrico** de [BUG-ZYB-001](#bug-zyb-001), y juntos son el hallazgo de
 verdad: cada motor tiene su propio agujero al pasar funciones entre módulos, y
@@ -425,6 +504,21 @@ llegó a esa forma por un bug y no por gusto.
 
 **`<<|` entrega Ctrl+letra como la letra, y colapsa el tabulador y el retroceso en un mismo valor.**
 
+> **CORREGIDO** en v0.0.9, en los dos motores que tienen terminal. Cada tecla
+> trae ahora lo que el terminal manda: Ctrl+A es `0d1`, Ctrl+S es `0d19`, el
+> tabulador es `0d9` y el retroceso es `0d127`. **No hizo falta ningún símbolo
+> nuevo**: `0dNN` ya escribe un carácter de control y `##!t < 32` ya hace la
+> pregunta. ESC, ENTER y las flechas siguen igual, y se comprueban para que el
+> arreglo no las rompiera.
+>
+> **Por qué ninguna suite lo veía**, que es más interesante que el fallo:
+> `zyquality/tui/run.sh` comparaba los motores **entre sí**, y los dos estaban
+> mal de la misma manera. Para un comparador eso es acuerdo, y lo era. Ahora un
+> caso puede llevar un golden además del consenso —`keys_control.zy`— y un
+> golden desfasado se cuenta aparte de una divergencia: son dos cosas
+> distintas, y solo la primera puede detectar un fallo que los motores
+> comparten. Es la misma división que `zyquality` ya hacía en todo lo demás.
+
 Medido escribiendo a un archivo lo que `<<|` devuelve y mirando los bytes, con el
 programa conducido por un pty de verdad:
 
@@ -465,6 +559,22 @@ escrita en Zymbol está limitada a teclas imprimibles, ESC y Enter.
 ## BUG-ZYB-007
 
 **`query_one` sin filas no devuelve el error blando que la documentación promete. `$!` nunca se dispara, y el programa revienta después y en otro sitio.**
+
+> **CORREGIDO** en v0.0.9: sin filas devuelve `##DB(query_one matched no rows)`,
+> que es lo que `GUIDE.md` prometía desde el principio, así que `? fila$!` —la
+> comprobación que la documentación indica— por fin se dispara.
+>
+> **Las dos preguntas quedan separadas**: una fila que no existe es un error
+> blando; una columna que vino `NULL` sigue siendo `Unit`, y eso **no** se
+> arregló — es [GAP-ZYB-009](#gap-zyb-009), abierto. `query_value` también
+> mantiene `Unit` a propósito: su resultado es un escalar, y un escalar puede
+> legítimamente *ser* `NULL`, así que ahí los dos vacíos sí son el mismo valor.
+>
+> En el programa, `es_nulo` se partió en dos: `sin_fila(v)` es `v$!` y `es_nulo(v)`
+> se queda para la columna. `zybank anotar CuentaQueNoExiste …` responde ahora
+> «No existe esa cuenta» en los dos motores — el mensaje que llevaba desde el
+> primer día escrito, traducido a cuatro idiomas y muerto. Caso en
+> `corpus/stdlib/stdlib_db_sin_filas.zy`.
 
 `GUIDE.md` § `std/db` dice: *«`query` returns an array of rows, `query_one` a
 single row (**or soft error**)»*. Así que la comprobación evidente —y la que la
@@ -511,13 +621,46 @@ dice que devuelve `Unit` y `$!` deja de ser la comprobación indicada.
 
 ## BUG-ZYB-008
 
-**Una escritura al estado del módulo hecha dentro de `>>|` la ve quien la escribió, pero no otra función del mismo módulo. El tree-walker se queda con el valor viejo; la VM no.**
+**El estado de un módulo leído a través de una función que no lo nombra da el valor anterior a la escritura. El tree-walker sí; la VM y el motor del navegador no.**
 
-Es la tercera divergencia de este log, y a diferencia de las otras dos **no se
-ha conseguido reducir a un caso mínimo**. Se registra con la evidencia que hay,
-que es concluyente aunque no sea corta, y con la lista de lo que ya se descartó
-— porque media reducción ahorrada a quien lo mire después vale más que una
-reproducción inventada.
+> **CORREGIDO** en v0.0.9. Está en `interpreter/MEMORY_MODEL.md` como **MM-12**,
+> con el resto de hallazgos del modelo de memoria, y el caso vive en
+> `corpus/modules_scope/estado_por_intermedia.zy` — en el corpus, que es donde
+> protege a los tres motores y no solo a esta aplicación.
+
+> **Y el enunciado de arriba era casi todo falso.** No tenía que ver con `>>|`,
+> ni con el teclado, ni con un bloque anidado, ni con la interfaz de pantalla
+> completa. El caso mínimo son **doce líneas** sin nada de eso:
+>
+> ```zymbol
+> # .min {
+>     #> { correr }
+>     v = "viejo"
+>     _lee()   { >> "lee=[" v "]" ¶ }
+>     _medio() { _lee() }
+>     correr() {
+>         v = "nuevo"
+>         _lee()       // TW: nuevo · VM: nuevo · JS: nuevo
+>         _medio()     // TW: VIEJO · VM: nuevo · JS: nuevo
+>     }
+> }
+> ```
+>
+> La misma función, llamada directamente, ve el valor nuevo; llamada a través de
+> una intermedia, ve el viejo. Eso es mucho más grave que un repintado: cualquier
+> aplicación modular con un nivel de indirección leía estado obsoleto, y las
+> tres aplicaciones LDV anteriores no lo notaron porque ninguna lo hacía.
+
+**La causa.** Una escritura al estado del módulo llegaba al almacén solo cuando
+retornaba el marco que la hizo. Hasta entonces la veía ese marco, y también lo
+que ese marco llamara **directamente** — porque la inyección busca una copia
+viva en el ámbito del llamante antes de recurrir al almacén. Una función en
+medio que no menciona la variable, y por tanto no recibe nada de ella, y la
+llamada siguiente lee el almacén, que aún no se ha enterado.
+
+**Por qué los seis casos mínimos no lo cazaron**, que es la lección: todos
+llamaban al lector **directamente**, y la llamada directa era justo la forma que
+funcionaba. No estaban mal escritos; estaban escritos alrededor del agujero.
 
 **Qué se observa.** `pantalla/tui.zy` guarda un aviso como estado del módulo. El
 bucle principal lo pinta y lo limpia:
@@ -552,6 +695,14 @@ que dos funciones del mismo módulo ven dos valores.
 La escritura hecha desde una función (`_borrar`) sí se propaga en los dos
 motores. La que no se propaga es la del **bloque anidado**.
 
+> Esto último es la conclusión equivocada, y conviene ver por qué se sacó. Es
+> cierto que la escritura del bloque no se propagaba — pero tampoco la de una
+> función, cuando la lectura venía por una intermedia. Lo que distinguía a los
+> dos casos observados no era **quién escribía**, sino **por dónde se leía**:
+> el aviso de `_borrar` se leía a través de `_pintar_cuentas`, que no lo nombra.
+> Con la evidencia disponible las dos explicaciones encajaban, y se eligió la
+> que miraba al sitio raro (`>>|`) en vez de al sitio corriente (una llamada).
+
 **Reproducción.** `pruebas/verificación_tui.sh` la ejerce; a mano:
 
 ```bash
@@ -577,18 +728,199 @@ casos mínimos, todos coincidentes:
 6. lo mismo con una lectura de teclado anidada en otro módulo, con su propio
    bucle de lectura — que es la forma exacta de `campo::confirmar`.
 
-Ninguno diverge. Hace falta algo más de la aplicación real que estos seis no
-tienen, y encontrarlo es el trabajo que `LDV.md` § 6 llama *poor resolution*: el
-fallo señala una región, no una línea.
+Ninguno diverge — y ahora se sabe por qué: **los seis llaman al lector
+directamente**, que era la única forma que funcionaba. Lo que les faltaba a los
+seis era una línea, la misma en todos: una función en medio.
 
-**Consecuencia para la suite.** `pruebas/verificación_tui.sh` ya no puede exigir
-igualdad byte a byte entre los dos motores mientras esto siga abierto. Compara
-lo que es determinista y significativo —los saldos, que coinciden exactamente en
-los dos— y **reporta** la diferencia de repintado nombrando este hallazgo, en
-lugar de tumbar el gate por algo ya registrado. Es la misma división que hace
-`zyquality`: los goldens son la puerta, el consenso es un hallazgo.
+**Cómo se encontró al final.** No construyendo un séptimo caso mínimo, sino al
+revés: reduciendo desde la aplicación real hacia abajo. Primero la secuencia de
+teclas —`⏎ x s q` no diverge y `⏎ x s i q` sí, así que hacía falta *una vuelta
+más del bucle*, no la tecla `i`—, después el programa, quitando el módulo de
+confirmación, luego el teclado, luego el `>>|`, luego el bucle. Lo que quedó son
+doce líneas que no se parecen en nada al enunciado original.
+
+Construir casos mínimos hacia arriba prueba las hipótesis que uno ya tiene.
+Reducir hacia abajo desde algo que falla no necesita ninguna.
+
+**Consecuencia para la suite.** `pruebas/verificación_tui.sh` vuelve a exigir
+igualdad **byte a byte** entre los dos motores — 21 570 bytes idénticos — además
+de la igualdad de saldos. Mientras el hallazgo estuvo abierto solo la reportaba,
+para no convertir algo ya registrado en una alarma diaria; cerrado el hallazgo,
+un byte de diferencia vuelve a ser lo que debe ser: un fallo.
 
 ---
+
+---
+
+## BUG-ZYB-009
+
+**`$!!` dentro de un `!?` se capturaba como si fuera una excepción. El tree-walker sí; la VM y el motor del navegador no — y la documentación les daba la razón a ellos.**
+
+> **CORREGIDO** en v0.0.9. Caso en `corpus/errors/catchable/propagar_no_es_lanzar.zy`.
+
+No se buscó: salió de escribir el caso de prueba de
+[BUG-ZYB-007](#bug-zyb-007). La forma natural de «capturar un fallo de la base»
+pone un `$!!` dentro de un `!?`, y los tres motores dieron dos respuestas.
+
+**Reproducción**, sin `std/db` y sin nada de la aplicación:
+
+```zymbol
+riesgoso(i) {
+    !? { <~ [10, 20][i] } :! { <~ _err }
+}
+
+prueba(i) {
+    !? {
+        e = riesgoso(i)
+        ? e$! { e$!! }
+        <~ "sin error"
+    } :! {
+        <~ "CAPTURADO por :!"
+    }
+}
+
+>> prueba(99) ¶
+```
+
+| motor | resultado |
+|-------|-----------|
+| zytw | `CAPTURADO por :!` |
+| zyvm | `##Index(array index out of bounds: …)` |
+| zyjs | `##Index(array index out of bounds: …)` |
+
+**Lo que decide cuál es el correcto** no es la mayoría, es que está escrito.
+`GUIDE.md` § «Value flow» dice: *«`$!!` is an **early return** … It does **not**
+throw an exception, so it cannot be caught with `!?/:!`»*. El lenguaje separa a
+propósito dos flujos —excepciones por `!?`/`:!`, valores por `$!`/`$!!`— y el
+tree-walker los juntaba en el único sitio donde no deben encontrarse: una
+función que propagaba un fallo hacia arriba era interceptada por su propia
+cláusula de captura.
+
+**La causa.** `execute_try` miraba **dentro** del retorno pendiente y, si el
+valor era un error, se lo entregaba al `:!`. Un `<~` de un valor corriente ya
+salía por ahí intacto; solo el error se desviaba. Hoy ningún retorno se desvía.
+
+---
+
+## BUG-ZYB-010
+
+**Un `:>` no se ejecuta entero cuando el bloque `!?` retorna. El tree-walker imprimía media sentencia; la VM se lo salta del todo.**
+
+> **CORREGIDO** en v0.0.9, en los dos motores. Caso en
+> `corpus/errors/catchable/finally_con_retorno.zy`.
+
+Es el tercer hallazgo salido de la misma verificación, y el más incómodo,
+porque `:>` significa «pase lo que pase» y las tres implementaciones
+entendían tres cosas distintas por «pase lo que pase».
+
+**Reproducción.** Cinco líneas, y **sin ningún error de por medio** — solo un
+`<~` dentro de un `!?` que tiene `:>`:
+
+```zymbol
+f() {
+    !? {
+        <~ "retornado"
+    } :> {
+        >> "limpieza" ¶
+    }
+}
+>> f() ¶
+```
+
+| motor | antes | qué pasaba |
+|-------|-------|------------|
+| zytw | `limpiezaretornado` | ejecuta el `:>` pero **se come el `¶`** |
+| zyvm | `retornado` | **no ejecuta el `:>`** |
+| zyjs | `limpieza` `retornado` | correcto |
+
+**Lo que lo explica en el tree-walker.** El bloque `:>` se ejecutaba con el
+`ControlFlow::Return` todavía puesto, y `execute_block` se detiene en la
+primera sentencia que ve mientras hay control de flujo pendiente. De ahí
+«media sentencia»: el `>>` alcanzó a escribir el texto y el `¶` ya no. Medio
+efecto es peor que ninguno, porque parece que funciona.
+
+Se apartaba el retorno antes de correr el `:>` y se vuelve a poner después,
+salvo que el propio `:>` levante control de flujo, que entonces gana él.
+
+**Y en la VM era otra cosa.** El compilador emitía el bloque `:>` **en línea**,
+detrás del try y del catch, y un `<~` retorna de la función saltándose esas
+instrucciones limpiamente: el `:>` no corría en absoluto. Un `:>` que no corre no
+libera lo que tenía que liberar, y esa es toda la razón de que exista la
+cláusula.
+
+Ahora cada `<~` alcanzable desde dentro de un `!?` emite antes una copia de los
+`:>` pendientes, de dentro afuera — que es lo que la nota de `TryCatch` en el
+bytecode llamaba «el compilador emite el bloque dos veces» y no hacía. Dos
+consecuencias que hubo que perseguir, y que están en el caso de corpus:
+
+- **La llamada de cola se anula dentro de un try con `:>`.** Un marco que
+  todavía debe limpieza no puede ser reemplazado por la llamada siguiente. Fuera
+  de un try la optimización sigue intacta, y el caso lo comprueba con una
+  recursión de 100 000 vueltas que no cabría en la pila sin ella.
+- **El valor de retorno se fija antes.** `compile_expr` sobre un identificador
+  devuelve el registro **de la variable**, no una copia, así que `<~ v` seguido
+  de `v = "otro"` dentro del `:>` devolvía `"otro"`. Se copia a un temporal, y
+  solo cuando hay un `:>` que ejecutar.
+
+**Lo que sigue abierto es otra cosa, y más pequeña**: un `<~` escrito **dentro**
+del `:>`. Los dos motores Rust retornan desde ahí —como hacen Java y Python— y el
+motor del navegador sigue hasta la sentencia posterior al try. Es anterior a todo
+esto y no hay caso de corpus por lo mismo de siempre: hoy pondría el consenso en
+rojo.
+
+**Y hay que decir cómo se destapó**, porque es el argumento del método: el
+fallo del tree-walker era **anterior** a todo esto y estaba oculto tras
+[BUG-ZYB-009](#bug-zyb-009). Mientras un retorno con error se limpiaba antes
+de llegar aquí, el `:>` de ese caso corría limpio; al arreglar 009 y dejar de
+limpiarlo, el caso del error pasó por el mismo camino que el caso corriente
+—que ya estaba roto— y lo hizo visible. Un arreglo no creó este fallo: le
+quitó el sitio donde se escondía.
+
+
+---
+
+## BUG-ZYB-011
+
+**Un `<~` escrito dentro de un `:>` retorna desde ahí en los dos motores Rust, y el del navegador lo ignora y sigue.**
+
+Es el residuo de [BUG-ZYB-010](#bug-zyb-010), y es anterior a él: salió al
+comprobar que aquella corrección no rompía nada, no de la corrección.
+
+**Reproducción.**
+
+```zymbol
+f() {
+    !? {
+        _x = 1
+    } :> {
+        <~ "desde el finally"
+    }
+    <~ "después del try"
+}
+>> f() ¶
+```
+
+| motor | resultado |
+|-------|-----------|
+| zytw | `desde el finally` |
+| zyvm | `desde el finally` |
+| zyjs | `después del try` |
+
+**Cuál es el correcto no está escrito en ninguna parte**, que es la mitad del
+hallazgo. Java y Python retornan desde el `finally` y descartan lo que hubiera
+antes, así que los dos motores Rust siguen la convención más extendida; pero
+`GUIDE.md` no dice nada de este caso, y por tanto los tres motores son
+igualmente defendibles contra la documentación que hay.
+
+Cerrarlo es primero decidir —¿el `:>` puede cambiar lo que devuelve la
+función, o es solo limpieza?— y después alinear el motor que quede fuera. La
+decisión importa más que la divergencia: un `:>` que puede secuestrar el valor
+de retorno es una construcción de la que hay que desconfiar, y varios lenguajes
+que la permiten avisan contra ella en su propia guía de estilo.
+
+No hay caso de corpus mientras siga abierto: hoy pondría el consenso en rojo,
+que es informar de lo mismo dos veces y a costa del gate.
+
 
 # GAP
 
@@ -1144,6 +1476,47 @@ analizador son buenos: `ambiguous lifetime` de verdad, variables sin usar,
 tiempos de vida en acumuladores. Este los devalúa a todos.
 
 ---
+
+---
+
+## ERROR-ZYB-004
+
+**`zymbol check` rechaza un `<# ../lib/util` que `zymbol run` ejecuta sin problema. Compone el nombre de archivo esperado uniendo la ruta con `_`.**
+
+Es el reverso exacto de [ERROR-ZYB-002](#error-zyb-002): allí `check` calla y la
+ejecución revienta; aquí `check` grita y la ejecución funciona. De los dos, este
+es el que impide trabajar: un programa correcto no pasa el analizador.
+
+**Reproducción.** El mismo árbol de [BUG-ZYB-004](#bug-zyb-004):
+
+```zymbol
+// rel/lib/util.zy
+# .util {
+    #> { dos }
+    dos() { <~ 2 }
+}
+
+// rel/sub/prog.zy
+<# ../lib/util => u
+>> u::dos() ¶
+```
+
+```text
+$ zymbol run   sub/prog.zy      → 2
+$ zymbol check sub/prog.zy      → error: E001: Module name '.util' does not
+                                    match file name 'lib_util'
+```
+
+`lib_util` no es el nombre de ningún archivo: es `lib/util` con el separador
+cambiado por un guion bajo. El analizador toma la ruta entera del import y la
+usa donde debería usar solo el último componente, así que **todo módulo
+importado con una ruta de más de un componente** falla la comprobación. Ocurre
+con las cuatro formas de invocar el archivo, incluida la ruta absoluta.
+
+**Es anterior a la corrección de [BUG-ZYB-004](#bug-zyb-004)** — se comprobó
+contra la invocación que ya funcionaba antes de tocar nada. Salió al verificar
+aquella, no de ella.
+
 
 # IDEA
 

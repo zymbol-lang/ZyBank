@@ -396,6 +396,20 @@
                 // because this field has none: it is written and
                 // erased from the end.
             }
+            _? k::es_control(t) {
+                // Tampoco se escribe un carácter de control. Antes
+                // de la corrección de BUG-ZYB-006 esta rama no hacía
+                // falta porque no podía ocurrir: Ctrl+A llegaba como
+                // la letra `a` y se escribía una `a`. Hoy llega como
+                // 0d1, que es peor si se escribe — un carácter
+                // invisible dentro de una glosa que nadie ve y que
+                // se guarda en la base de datos.
+                // EN: a control character is not typed either. Before
+                // BUG-ZYB-006 was fixed this branch could not happen:
+                // Ctrl+A arrived as the letter `a`. It now arrives as
+                // 0d1, which is worse if written — an invisible
+                // character inside a note, stored in the database.
+            }
             _ {
                 // Se mide en COLUMNAS y no en caracteres: «食費»
                 // ocupa cuatro columnas del campo, no dos.

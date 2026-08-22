@@ -157,16 +157,38 @@ fallos = fallos + igual("árabe ٫",    k::es_separador('٫'), #1)
 fallos = fallos + igual("un dígito no lo es", k::es_separador('5'), #0)
 
 >> "== las teclas de control, por su código ==" ¶
-// Lo que llega por `<<|` al pulsarlas: RETROCESO y TABULADOR
-// colapsan los dos en NUL (BUG-ZYB-006), ESC llega como 27 y ENTER
-// como salto de línea aunque el teclado mande retorno de carro.
-// EN: what `<<|` delivers: backspace and Tab both collapse to NUL
-// (BUG-ZYB-006), ESC arrives as 27 and Enter as a line feed even
-// though the keyboard sends a carriage return.
-fallos = fallos + igual("borrar es NUL",   k::es_borrar(0d0), #1)
+// Lo que llega por `<<|` al pulsarlas. Cada tecla trae ahora el
+// valor que el terminal manda: el RETROCESO es DEL (127) y el
+// TABULADOR es 9, distintos y distinguibles. Hasta la corrección
+// de BUG-ZYB-006 los dos llegaban como NUL y esta prueba afirmaba
+// «borrar es NUL», que era cierto y era el fallo.
+//
+// Ctrl+letra llega como su carácter de control: Ctrl+A es 1. Antes
+// llegaba como la letra `a`, así que un atajo se habría disparado
+// al teclear esa letra dentro de un campo de texto.
+//
+// ESC sigue siendo 27 y ENTER sigue siendo salto de línea aunque
+// el teclado mande retorno de carro — esas dos ya estaban bien y se
+// comprueban para que la corrección no las rompiera.
+//
+// EN: what `<<|` delivers. Each key now carries what the terminal
+// sends: backspace is DEL (127), Tab is 9, and they are told apart.
+// Until BUG-ZYB-006 was fixed both arrived as NUL and this suite
+// asserted "backspace is NUL" — true, and the bug. Ctrl+letter is
+// its control character (Ctrl+A is 1); it used to arrive as the
+// letter. ESC and Enter were already right and are checked so the
+// fix could not break them.
+fallos = fallos + igual("borrar es DEL",   k::es_borrar(0d127), #1)
+fallos = fallos + igual("borrar no es NUL", k::es_borrar(0d0), #0)
+fallos = fallos + igual("tabular es 9",    k::es_tabular(0d9), #1)
+fallos = fallos + igual("tabular no es borrar", k::es_borrar(0d9), #0)
 fallos = fallos + igual("escapar es 27",   k::es_escapar(0d27), #1)
 fallos = fallos + igual("entrar es 10",    k::es_entrar(0d10), #1)
 fallos = fallos + igual("un dígito no es escapar", k::es_escapar('5'), #0)
+fallos = fallos + igual("Ctrl+A es control", k::es_control(0d1), #1)
+fallos = fallos + igual("DEL es control",    k::es_control(0d127), #1)
+fallos = fallos + igual("una letra no lo es", k::es_control('a'), #0)
+fallos = fallos + igual("un dígito no lo es", k::es_control('5'), #0)
 
 >> "== transliterar sigue a la escritura activa ==" ¶
 fallos = fallos + igual("ASCII", k::transliterar("12.50"), "12.50")

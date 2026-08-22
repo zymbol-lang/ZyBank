@@ -114,12 +114,16 @@ sembrar
 # and one Bengali digit: all three must enter, since a Hindi keyboard sends
 # U+0966, not U+0030. The 'a' and the '.' must not. The field must read "123".
 ABAJO='\x1b[B'; ARRIBA='\x1b[A'; IZQUIERDA='\x1b[D'
-# El retroceso es DEL (0x7f), no NUL: NUL es lo que el LENGUAJE entrega cuando se
-# pulsa, no lo que el terminal manda, y un NUL escrito en el pty no llega a
-# ninguna parte. Comprobado — con 0x00 esta prueba pasaba sin borrar nada.
-# EN: backspace is DEL (0x7f), not NUL: NUL is what the LANGUAGE delivers when it
-# is pressed, not what the terminal sends, and a NUL written into the pty goes
-# nowhere. Verified — with 0x00 this check passed without erasing anything.
+# El retroceso es DEL (0x7f), que es lo que manda el terminal — y desde la
+# corrección de BUG-ZYB-006, también lo que el lenguaje entrega. Antes `<<|`
+# devolvía NUL para esta tecla y para el tabulador a la vez, así que las dos
+# líneas de este archivo divergían: aquí se mandaba 0x7f porque un NUL escrito
+# en el pty no llega a ninguna parte, y `pantalla/teclas` comparaba contra 0d0.
+# EN: backspace is DEL (0x7f) — what the terminal sends, and since BUG-ZYB-006
+# was fixed, what the language delivers too. `<<|` used to return NUL for this
+# key and for Tab alike, so the two ends of this file disagreed: 0x7f went into
+# the pty because a NUL written there goes nowhere, while `pantalla/teclas`
+# compared against 0d0.
 BORRAR='\x7f'
 KEYS=("$ABAJO" "$ARRIBA"
       '\r' n '\r' 1 a २ . ৩ '\r' P a n "$IZQUIERDA" '\r'
@@ -273,17 +277,22 @@ fi
 # de saldos, han hecho lo mismo con el dinero, que es lo que esta aplicación
 # tiene que hacer bien.
 #
-# La igualdad byte a byte está abierta como BUG-ZYB-008: el tree-walker repinta
-# un aviso ya borrado porque una escritura al estado del módulo hecha dentro de
-# `>>|` no la ve otra función del mismo módulo. Es una divergencia real y está
-# registrada; hacer que tumbe esta suite convertiría un hallazgo conocido en una
-# alarma diaria. Se reporta y no se cierra la puerta con ella — la misma
-# división que hace zyquality entre goldens (la puerta) y consenso (el hallazgo).
+# La igualdad byte a byte se exige DESDE que se cerró BUG-ZYB-008. Mientras
+# estuvo abierto solo se reportaba: el tree-walker repintaba un aviso ya borrado
+# y hacer que eso tumbara la suite habría convertido un hallazgo conocido en una
+# alarma diaria. Ya no hay tal hallazgo, así que un byte de diferencia vuelve a
+# ser lo que debe ser — un fallo.
 #
-# EN: the verdict is on the BALANCES, not the bytes. A balance is the result of
-# recording, adjusting, correcting and deleting; if both engines reach the same
-# sequence, they did the same thing with the money. Byte equality is open as
-# BUG-ZYB-008 and is reported rather than gated.
+# El fallo era que una escritura al estado del módulo solo llegaba al almacén al
+# retornar el marco que la hizo, de modo que una función intermedia que no
+# nombra la variable rompía la cadena y la siguiente lectura veía el valor
+# anterior. Está en MEMORY_MODEL.md como MM-12, y el caso está en el corpus
+# (`modules_scope/estado_por_intermedia.zy`), que es donde protege a los tres
+# motores y no solo a esta aplicación.
+#
+# EN: the verdict is on the BALANCES, and byte equality is now required too —
+# BUG-ZYB-008 is closed (MM-12). It was only reported while it was open, so a
+# known finding would not raise a daily alarm; there is no finding now.
 
 saldos() { grep -ao 'Corriente  \$[0-9.]*' "$1" | tr '\n' ' '; }
 
@@ -305,11 +314,15 @@ echo "ok   tw == vm en los saldos  ($(echo $S_TW | wc -w) estados)"
 
 if diff -q salida.tw salida.vm >/dev/null; then
     echo "ok   tw == vm byte a byte  ($(wc -c < salida.tw) bytes)"
-    echo "     (BUG-ZYB-008 ya no se reproduce: conviene cerrarlo)"
 else
     n_tw=$(grep -ao '38;5;214m' salida.tw | wc -l)
     n_vm=$(grep -ao '38;5;214m' salida.vm | wc -l)
-    echo "aviso  difieren en el repintado: $n_tw avisos en tw, $n_vm en vm — BUG-ZYB-008, abierto"
+    echo "FALLO  los motores pintan pantallas distintas"
+    echo "    avisos: $n_tw en tw, $n_vm en vm"
+    echo "    (BUG-ZYB-008 se cerró con MM-12; si ha vuelto, empieza por"
+    echo "     corpus/modules_scope/estado_por_intermedia.zy)"
+    diff <(cat -v salida.tw) <(cat -v salida.vm) | head -12 | sed 's/^/    /'
+    exit 1
 fi
 echo "TODO BIEN"
 exit 0

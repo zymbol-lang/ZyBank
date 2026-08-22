@@ -47,9 +47,9 @@ ok   sin partidas nuevas
 ok   una fila por categoría, todas CLP
 ok   ninguna fila mezcla monedas
 ok   el gasto es el gasto
-== una consulta sin filas no es un error, y hay que saberlo ==
-ok   $! NO detecta la fila ausente
-ok   es_nulo SÍ la detecta
+== una consulta sin filas es un error blando, y se puede preguntar ==
+ok   $! detecta la fila ausente
+ok   sin_fila SÍ la detecta
 ok   y no confunde una que sí existe
 == abonar y cargar son movimientos, no un saldo que cambia ==
 ok   abonado

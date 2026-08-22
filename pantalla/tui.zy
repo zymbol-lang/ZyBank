@@ -479,7 +479,7 @@
         sentido = "cargo"
         ? !al::es_nulo(mv.categoría) {
             c = al::categoría_por_clave(mv.categoría)
-            ? !al::es_nulo(c) {
+            ? !al::sin_fila(c) {
                 cat_id = c.id
                 sentido = c.sentido
             }

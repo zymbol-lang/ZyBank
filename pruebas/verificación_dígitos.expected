@@ -38,10 +38,17 @@ ok   coma
 ok   árabe ٫
 ok   un dígito no lo es
 == las teclas de control, por su código ==
-ok   borrar es NUL
+ok   borrar es DEL
+ok   borrar no es NUL
+ok   tabular es 9
+ok   tabular no es borrar
 ok   escapar es 27
 ok   entrar es 10
 ok   un dígito no es escapar
+ok   Ctrl+A es control
+ok   DEL es control
+ok   una letra no lo es
+ok   un dígito no lo es
 == transliterar sigue a la escritura activa ==
 ok   ASCII
 ok   devanagari

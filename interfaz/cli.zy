@@ -88,7 +88,7 @@
 
     _moneda_de(nombre_cuenta) {
         f = al::cuenta_por_nombre(nombre_cuenta)
-        ? al::es_nulo(f) { <~ mon::obtener(prefs["moneda"]) }
+        ? al::sin_fila(f) { <~ mon::obtener(prefs["moneda"]) }
         <~ mon::obtener(f.moneda)
     }
 
@@ -183,7 +183,7 @@
             <~ 2
         }
         cta = al::cuenta_por_nombre(args[2])
-        ? al::es_nulo(cta) {
+        ? al::sin_fila(cta) {
             >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
             <~ 2
         }
@@ -191,7 +191,7 @@
         clave_cat = args[3]
         cat = al::categoría_por_clave(clave_cat)
         cat_id = 0
-        ? al::es_nulo(cat) {
+        ? al::sin_fila(cat) {
             // Una categoría que no existe se CREA, con el grupo y
             // el sentido deducidos de su propia clave. Obligar a
             // declararla antes sería obligar a interrumpir lo que
@@ -284,11 +284,11 @@
         }
         o = al::cuenta_por_nombre(args[2])
         d = al::cuenta_por_nombre(args[3])
-        ? al::es_nulo(o) {
+        ? al::sin_fila(o) {
             >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
             <~ 2
         }
-        ? al::es_nulo(d) {
+        ? al::sin_fila(d) {
             >> idi::texto("msg.cuenta_no_existe") ": " args[3] ¶
             <~ 2
         }
@@ -344,7 +344,7 @@
         id = 0
         ? args$# >= 2 {
             c = al::cuenta_por_nombre(args[2])
-            ? al::es_nulo(c) {
+            ? al::sin_fila(c) {
                 >> idi::texto("msg.cuenta_no_existe") ": " args[2] ¶
                 <~ 2
             }

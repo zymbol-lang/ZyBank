@@ -209,17 +209,24 @@ _ {
     }
     fallos = fallos + igual("el gasto es el gasto", d::formatear(total_alim, m::obtener("CLP")), "-$25.990")
 
-    >> "== una consulta sin filas no es un error, y hay que saberlo ==" ¶
-    // BUG-ZYB-007: `$!` responde #0 tanto si hay fila como si no, así que la
-    // comprobación que la documentación indica nunca se dispara. Esto vigila
-    // que el programa siga usando la que sí funciona.
-    // EN: BUG-ZYB-007 — `$!` says #0 with or without a row, so the check the
-    // documentation prescribes never fires. This watches that the program keeps
-    // using the one that works.
+    >> "== una consulta sin filas es un error blando, y se puede preguntar ==" ¶
+    // BUG-ZYB-007, corregido: `query_one` sin filas devuelve `##DB(...)`, que
+    // es lo que `GUIDE.md` prometía desde el principio, así que `$!` —la
+    // comprobación que la documentación indica— por fin se dispara.
+    //
+    // Antes respondía #0 con fila y sin ella, y esta suite vigilaba la
+    // afirmación contraria: que `$!` NO la detectaba. Se comprueban las dos
+    // caras porque lo que importa no es que `$!` diga #1, sino que diga #1
+    // SOLO cuando no hay fila.
+    //
+    // EN: fixed. `query_one` with no rows returns `##DB(...)`, which is what
+    // GUIDE.md promised all along, so `$!` finally fires. This suite used to
+    // assert the opposite. Both sides are checked: what matters is not that
+    // `$!` says #1, but that it says #1 only when there is no row.
     fantasma = a::cuenta_por_nombre("NoExisteEstaCuenta")
-    fallos = fallos + igual("$! NO detecta la fila ausente", fantasma$!, #0)
-    fallos = fallos + igual("es_nulo SÍ la detecta", a::es_nulo(fantasma), #1)
-    fallos = fallos + igual("y no confunde una que sí existe", a::es_nulo(a::cuenta_por_nombre("Corriente")), #0)
+    fallos = fallos + igual("$! detecta la fila ausente", fantasma$!, #1)
+    fallos = fallos + igual("sin_fila SÍ la detecta", a::sin_fila(fantasma), #1)
+    fallos = fallos + igual("y no confunde una que sí existe", a::sin_fila(a::cuenta_por_nombre("Corriente")), #0)
 
     >> "== abonar y cargar son movimientos, no un saldo que cambia ==" ¶
     antes = a::saldo(c1)
@@ -239,9 +246,9 @@ _ {
     apertura_c1 = a::movimiento(ap.id)
     fallos = fallos + igual("la apertura sigue intacta", apertura_c1.importe, 500000)
     fallos = fallos + igual("el ajuste que abona tiene categoría propia",
-          a::es_nulo(a::categoría_por_clave("ajuste.abono")), #0)
+          a::sin_fila(a::categoría_por_clave("ajuste.abono")), #0)
     fallos = fallos + igual("y el que carga también",
-          a::es_nulo(a::categoría_por_clave("ajuste.cargo")), #0)
+          a::sin_fila(a::categoría_por_clave("ajuste.cargo")), #0)
     // Un ajuste no cuelga de ingresos ni de gastos: tiene grupo propio.
     // EN: an adjustment hangs off neither income nor expense.
     fallos = fallos + igual("y no cuelga de ingresos ni gastos",
@@ -291,7 +298,7 @@ _ {
     (ok_d2, _q2) = a::borrar(uno.id)
     fallos = fallos + igual("borrado", ok_d2, #1)
     fallos = fallos + igual("uno menos", a::movimientos(0, 99)$#, antes_n2 - 1)
-    fallos = fallos + igual("y ya no está", a::es_nulo(a::movimiento(uno.id)), #1)
+    fallos = fallos + igual("y ya no está", a::sin_fila(a::movimiento(uno.id)), #1)
 
     a::cerrar()
     <\ "rm -f zybank_prueba.db" \>
@@ -372,7 +379,7 @@ _ {
         movs_v = a::movimientos(vieja.id, 9)
         fallos = fallos + igual("hay dos líneas: la apertura y la que ya estaba", movs_v$#, 2)
         apertura_v = a::categoría_por_clave("apertura.abono")
-        fallos = fallos + igual("la apertura existe como categoría", a::es_nulo(apertura_v), #0)
+        fallos = fallos + igual("la apertura existe como categoría", a::sin_fila(apertura_v), #0)
         vieja_ap = #0
         vieja_cine = #0
         @ mv:movs_v {
@@ -402,7 +409,7 @@ _ {
         fallos = fallos + igual("el ajuste que cargaba salió de gastos",
               (a::categoría_por_clave("ajuste.cargo")).grupo, "ajuste")
         fallos = fallos + igual("la clave vieja ya no existe",
-              a::es_nulo(a::categoría_por_clave("ingreso.ajuste")), #1)
+              a::sin_fila(a::categoría_por_clave("ingreso.ajuste")), #1)
         fallos = fallos + igual("ninguna categoría se perdió", a::categorías("")$#, 6)
         fallos = fallos + igual("tres abonan, con la de apertura", a::categorías("abono")$#, 3)
         fallos = fallos + igual("tres cargan, con la de apertura", a::categorías("cargo")$#, 3)

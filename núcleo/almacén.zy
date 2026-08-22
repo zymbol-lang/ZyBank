@@ -44,6 +44,7 @@
         conexión
         hoy
         es_nulo
+        sin_fila
         // cuentas
         crear_cuenta
         cuentas
@@ -348,34 +349,37 @@
         <~ <\ "date +%F" \>
     }
 
-    // ¿Aquí no hay nada?
+    // ¿Aquí no hay nada? — y son DOS preguntas, no una.
     //
-    // Responde por los DOS vacíos que devuelve `std/db`, que son el
-    // mismo valor: una columna que venía `NULL` y una consulta
-    // `query_one` que no encontró ninguna fila. Ambas dan `Unit`.
+    // Hasta la corrección de BUG-ZYB-007 sí eran una sola: `std/db`
+    // devolvía `Unit` tanto para una columna que venía `NULL` como
+    // para una `query_one` que no encontró fila, y `$!` respondía
+    // #0 a las dos. La comprobación que `GUIDE.md` indica —`? fila$!`—
+    // no detectaba nunca la fila ausente, y el programa seguía hasta
+    // romperse más adelante con «Cannot access member 'id' on
+    // non-tuple value», lejos de la línea que lo causó.
     //
-    // Ninguna de las dos es un error blando: `$!` responde #0 para
-    // las dos. Eso importa porque `GUIDE.md` describe `query_one`
-    // como «a single row (or soft error)», así que la comprobación
-    // que la documentación indica —`? fila$!`— NUNCA detecta la
-    // fila ausente, y el programa sigue hasta romperse más adelante
-    // con «Cannot access member 'id' on non-tuple value», lejos de
-    // la línea que lo causó. Es BUG-ZYB-007, y también GAP-ZYB-009
-    // para el caso de la columna.
+    // Hoy cada pregunta tiene su forma:
     //
-    // La única forma de preguntarlo es destructurar la reflexión de
-    // tipo y mirar el segundo campo, que vale 0 cuando no hay valor.
-    // Tampoco vale comparar: `Unit` no es igual a `""` ni a 0, y
-    // `"" v` sobre él ABORTA.
+    //   sin_fila(v)   la consulta no encontró la fila   → `$!`
+    //   es_nulo(v)    la columna venía NULL             → sigue `Unit`
     //
-    // EN: is there nothing here? Answers for BOTH of `std/db`'s
-    // empties, which are one value: a column that arrived NULL, and
-    // a `query_one` that matched no row. Neither is a soft error —
-    // `$!` says #0 to both — which matters because `GUIDE.md`
-    // describes `query_one` as "a single row (or soft error)", so
-    // the check the documentation prescribes NEVER fires, and the
-    // program breaks later and elsewhere. BUG-ZYB-007, and
-    // GAP-ZYB-009 for the column case.
+    // `es_nulo` se queda porque el caso de la columna NO se arregló:
+    // un `NULL` sigue llegando como `Unit`, que no es un error, no es
+    // la cadena vacía y no es cero, y la única forma de preguntarlo
+    // es destructurar la reflexión de tipo y mirar el segundo campo,
+    // que vale 0 cuando no hay valor. Ni siquiera vale comparar, y
+    // `"" v` sobre un `Unit` aborta. Eso es GAP-ZYB-009, abierto.
+    //
+    // EN: two questions, not one. Until BUG-ZYB-007 was fixed they
+    // were the same: `std/db` returned `Unit` both for a NULL column
+    // and for a `query_one` that matched nothing, and `$!` said #0 to
+    // both — so the check the documentation prescribes never fired
+    // and the program broke later and elsewhere. `sin_fila` now asks
+    // the first with `$!`; `es_nulo` stays for the second, which was
+    // not fixed: a NULL still arrives as `Unit` (GAP-ZYB-009).
+    sin_fila(v) { <~ v$! }
+
     es_nulo(v) {
         (_t, hay, _val) = v#?
         <~ hay == 0
@@ -482,7 +486,7 @@
     // rather than the user picks a category.
     _asegurar_categoría(clave, grupo, sentido) {
         cat = categoría_por_clave(clave)
-        ? !es_nulo(cat) { <~ (#1, cat.id) }
+        ? !sin_fila(cat) { <~ (#1, cat.id) }
         (hecha, nid) = crear_categoría(clave, grupo, sentido)
         ? !hecha { <~ (#0, nid) }
         <~ (#1, nid)
