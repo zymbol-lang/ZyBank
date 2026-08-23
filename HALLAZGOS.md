@@ -136,7 +136,7 @@ teclado.
 | [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es | abierto |
 | [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | ~~no hay forma de escribir un carácter de control~~ — sí la hay: `0d27` es ESC, y `##!` da el punto de código | **retirado · era falso** |
 | [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | ~~las flechas del teclado no se pueden usar sin perder la tecla ESC~~ — `<<|` las entrega decodificadas y ESC sigue llegando solo | **retirado · era falso** |
-| [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `##!` sobre un `Char` da su punto de código; lo que falta es el predicado `es_dígito`, no la lectura | **muy reducido** |
+| [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `#\|c\|` da el VALOR de la cifra en las 69, y ningún programa declara cero alguno | **corregido** · v0.0.9 |
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico | abierto |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | **corregido** · v0.0.9 |
@@ -1403,8 +1403,31 @@ verificaron quitando la función para ver que fallan.
 
 ## GAP-ZYB-012
 
-> **MUY REDUCIDO — el lenguaje sí sabe leer una cifra.** Lo que queda es una
-> comodidad que falta, no un muro; el enunciado original era falso.
+> **CORREGIDO** en v0.0.9, y el enunciado seguía siendo falso incluso después
+> de reducirlo. `#|…|` —la conversión segura a número— **ya conocía las 69
+> escrituras**, pero solo a través de una cadena: el mismo carácter escrito
+> como `Char` volvía sin convertir.
+>
+> ```zymbol
+> #|"७"|  → 7        #|'७'|  → ७     ← el mismo carácter, dos respuestas
+> #|"7"|  → 7        #|'7'|  → '7'
+> ```
+>
+> Y `<<|` entrega precisamente un `Char`, así que el hueco caía justo donde una
+> aplicación lo pisa. Hoy `#|c|` da el valor —`'७'`→7, `'٣'`→3, `'೯'`→9— y
+> devuelve el carácter intacto si no es una cifra, que es lo que «conversión
+> segura» ya significaba para una cadena. **Ningún programa declara ya el cero
+> de ninguna escritura.** Caso en `corpus/casts/cifra_de_cualquier_escritura.zy`.
+>
+> Es el **quinto** hallazgo de este log que probó el operador contiguo al que
+> respondía la pregunta: aquí `##!` (el punto de código) en vez de `#|…|` (la
+> lectura numérica).
+>
+> Lo que queda abierto es más pequeño y es otra cosa: el símbolo de tipo con el
+> que se pregunta «¿fue una cifra?» se compara hoy contra una **cadena mágica**
+> (`(v#?)[1] == "###"`). Un literal de tipo comprobable espera a que se fije una
+> sola tabla de símbolos — hoy hay dos que no coinciden, y `#?` responde `##)`
+> tanto para una tupla como para un diccionario.
 
 **Lo que decía:** que el lenguaje sabe ESCRIBIR cifras en 69 escrituras y no
 sabe LEER ninguna, que no hay forma de llegar al punto de código de un carácter,
