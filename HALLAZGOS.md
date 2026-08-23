@@ -12,12 +12,15 @@
 > `BUG-001`) desde la primera entrada. चतुरङ्गम् fue el primero en adoptarla; este
 > es el segundo, y además con el nombre de archivo que el decálogo pide.
 >
-> **Estado del ciclo.** En revisión desde el 2026-08-21. **Los diez BUG están
-> cerrados**, más BUG-ZYB-009 y BUG-ZYB-010, que aparecieron durante la propia
-> revisión, y el gate verde después de cada uno: `zyq suite` da *all gates
-> pass*, con 633 archivos de corpus, **0 divergencias** entre los tres motores y
-> ningún retroceso de rendimiento. Queda abierto BUG-ZYB-011 —que es una
-> pregunta de diseño, no un fallo— y las categorías GAP, ERROR e IDEA.
+> **Estado del ciclo.** En revisión desde el 2026-08-21. **Los once BUG están
+> cerrados** —incluidos BUG-ZYB-009, 010 y 011, que aparecieron durante la
+> propia revisión— y con ellos GAP-ZYB-001 y 008, ERROR-ZYB-003 y el
+> ERROR-ZYB-005 que salió al comprobar un GAP. El gate va verde después de cada
+> uno: `zyq suite` da *all gates pass*, con 637 archivos de corpus, **0
+> divergencias** entre los tres motores y ningún retroceso de rendimiento.
+>
+> Quedan por decidir o implementar GAP-ZYB-002 a 006, 009 y 012, ERROR-ZYB-001 y
+> 002, y las dos IDEA.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
 > es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
@@ -40,7 +43,7 @@ científico, un auditor de código y dos juegos de tablero. Ninguno tenía:
 | **datos que sobreviven al idioma** | lo guardado son claves; los nombres se traducen al mostrarse, y una base creada en japonés se lee en español |
 | **configuración con precedencia** | archivo JSON sobre lo recordado en la base |
 
-De los veintinueve hallazgos —11 BUG, 12 GAP, 4 ERROR, 2 IDEA— la mitad larga sale
+De los treinta hallazgos —11 BUG, 12 GAP, 5 ERROR, 2 IDEA— la mitad larga sale
 de esas intersecciones y no de una característica aislada, que es el argumento
 de `LDV.md` § 4 en concreto. Los dos peores lo dejan claro: pasar una función
 entre módulos rompe en el tree-walker de una manera
@@ -58,8 +61,14 @@ teclado pierde el modificador Control y colapsa dos teclas en una
 ([BUG-ZYB-006](#bug-zyb-006)) y el tree-walker repinta un estado que ya se
 había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
 
-**Cuatro** hallazgos de esta lista resultaron ser **falsos o mal enunciados**, y
-merecen decirse aquí antes que en su ficha. El cuarto es
+**Seis** hallazgos de esta lista resultaron ser **falsos o mal enunciados**, y
+merecen decirse aquí antes que en su ficha. Los dos últimos salieron al
+revisarlos uno por uno: [GAP-ZYB-007](#gap-zyb-007) culpaba a la yuxtaposición
+de un error del inferidor de tipos, y [GAP-ZYB-001](#gap-zyb-001) daba por
+ausente un relleno de ceros que el lenguaje tenía, tras probarlo con el operador
+de al lado —`#.N`, que devuelve un número— en vez de con el que formatea. Cinco
+de los seis comparten la forma: se probó **el operador contiguo** al que
+respondía la pregunta. El cuarto es
 [BUG-ZYB-008](#bug-zyb-008), y no era falso sino **mal localizado**: decía que el
 problema estaba en escribir dentro de `>>|`, y no tenía que ver con `>>|`, ni con
 el teclado, ni con la pantalla completa. El caso mínimo son doce líneas de dos
@@ -115,23 +124,24 @@ teclado.
 | [BUG-ZYB-008](#bug-zyb-008) | BUG | estado de módulo (TW) | el estado del módulo leído **a través de una función que no lo nombra** da el valor anterior — TW sí, VM y JS no. No tenía que ver con `>>|` | **corregido** · v0.0.9 (MM-12) |
 | [BUG-ZYB-009](#bug-zyb-009) | BUG | errores (TW) | `$!!` dentro de un `!?` **se captura como excepción** — TW sí, VM y JS no, y la documentación da la razón a estos dos | **corregido** · v0.0.9 |
 | [BUG-ZYB-010](#bug-zyb-010) | BUG | errores (TW y VM) | un `:>` (finally) **no se ejecuta entero** cuando el bloque `!?` retorna: el TW se comía media sentencia, la VM se lo saltaba del todo | **corregido** · v0.0.9 |
-| [BUG-ZYB-011](#bug-zyb-011) | BUG | errores (JS) | un `<~` escrito **dentro** de un `:>` retorna desde ahí en los dos motores Rust y se ignora en el del navegador | abierto |
-| [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | no hay precisión decimal en tiempo de ejecución ni relleno de ceros | abierto |
+| [BUG-ZYB-011](#bug-zyb-011) | BUG | errores (JS) | un `<~` escrito **dentro** de un `:>` retorna desde ahí en los dos motores Rust y se ignora en el del navegador | **corregido** · v0.0.9 |
+| [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | ~~no hay precisión decimal en tiempo de ejecución **ni relleno de ceros**~~ — el relleno ya existía en `#,.N`; la precisión variable ya se puede escribir | **corregido · enunciado a medias** |
 | [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes | abierto |
 | [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío | abierto |
 | [GAP-ZYB-004](#gap-zyb-004) | GAP | diccionario | las claves del literal deben ser identificadores | abierto |
 | [GAP-ZYB-005](#gap-zyb-005) | GAP | módulos | una función de módulo no es un valor de primera clase | abierto |
 | [GAP-ZYB-006](#gap-zyb-006) | GAP | CLI | un programa no puede fijar su código de salida | abierto |
-| [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | la yuxtaposición no se admite en argumentos de llamada | abierto |
-| [GAP-ZYB-008](#gap-zyb-008) | GAP | conversión a texto | un agregado se imprime con `>>` pero no se puede llevar a una cadena | abierto |
+| [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | ~~la yuxtaposición no se admite en argumentos de llamada~~ — sí se admite; el error era del inferidor de tipos ([ERROR-ZYB-005](#error-zyb-005)) | **retirado · era falso** |
+| [GAP-ZYB-008](#gap-zyb-008) | GAP | conversión a texto | un agregado se imprime con `>>` pero no se puede llevar a una cadena — solo el TW | **corregido** · v0.0.9 |
 | [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es | abierto |
 | [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | ~~no hay forma de escribir un carácter de control~~ — sí la hay: `0d27` es ESC, y `##!` da el punto de código | **retirado · era falso** |
 | [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | ~~las flechas del teclado no se pueden usar sin perder la tecla ESC~~ — `<<|` las entrega decodificadas y ESC sigue llegando solo | **retirado · era falso** |
 | [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `##!` sobre un `Char` da su punto de código; lo que falta es el predicado `es_dígito`, no la lectura | **muy reducido** |
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico | abierto |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
-| [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | abierto |
-| [ERROR-ZYB-004](#error-zyb-004) | ERROR | `check` / analizador | `zymbol check` **rechaza** un `<# ../lib/util` que `zymbol run` ejecuta sin problema: compone el nombre esperado uniendo la ruta con `_` (`lib_util`) | abierto |
+| [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | **corregido** · v0.0.9 |
+| [ERROR-ZYB-004](#error-zyb-004) | ERROR | `check` / analizador | ~~`zymbol check` rechaza un `<# ../lib/util` que `zymbol run` ejecuta~~ — el convenio del punto dice que `# .lib_util` nombra la ruta entera; el archivo de la prueba estaba mal escrito | **retirado · era falso** |
+| [ERROR-ZYB-005](#error-zyb-005) | ERROR | inferidor de tipos | yuxtaponer un parámetro lo obliga a ser `String`, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta | **corregido** · v0.0.9 |
 | [IDEA-ZYB-001](#idea-zyb-001) | IDEA | doctrina i18n | el formato numérico es un cuarto eje que `USERAPPI18N.md` no cubre | propuesta |
 | [IDEA-ZYB-002](#idea-zyb-002) | IDEA | doctrina | el dinero como entero + exponente merece ser doctrina escrita | propuesta |
 
@@ -883,6 +893,18 @@ quitó el sitio donde se escondía.
 
 **Un `<~` escrito dentro de un `:>` retorna desde ahí en los dos motores Rust, y el del navegador lo ignora y sigue.**
 
+> **CORREGIDO** en v0.0.9: **el `:>` es limpieza y no decide lo que la función
+> devuelve.** Un `<~` dentro evalúa su expresión —puede tener efectos— y se
+> descarta; el retorno que el bloque `!?` llevaba sigue su camino.
+>
+> Java y Python hacen lo contrario y dejan ganar al `finally`, y **los dos
+> avisan contra ello en sus propias guías de estilo**. Zymbol se queda con el
+> aviso en vez de con la característica: quien lee una función puede fiarse de
+> que el valor que vuelve es el del `<~` que tiene delante. Los dos motores Rust
+> se alinearon con el del navegador, que ya lo hacía así.
+>
+> Caso al pie de `corpus/errors/catchable/finally_con_retorno.zy`.
+
 Es el residuo de [BUG-ZYB-010](#bug-zyb-010), y es anterior a él: salió al
 comprobar que aquella corrección no rompía nada, no de la corrección.
 
@@ -927,6 +949,32 @@ que es informar de lo mismo dos veces y a costa del gate.
 ## GAP-ZYB-001
 
 **No hay formateo decimal con precisión en tiempo de ejecución, ni relleno de ceros.**
+
+> **CORREGIDO a medias, y el enunciado también lo estaba.**
+>
+> **El relleno de ceros ya existía**: `#,.2|10.5|` da `10.50` y siempre lo dio.
+> La ficha afirma abajo que «eso no lo da ninguna forma del lenguaje», y es
+> falso — probó `#.2|10.5|`, que es **otro operador**. `#.N` redondea y devuelve
+> un **Float**; `#,.N` formatea y devuelve una **cadena**. Un `10.50` numérico
+> *es* `10.5`, así que rellenarlo no significa nada hasta que hay texto. No son
+> operadores hermanos escritos casi igual: son aritmética y formato.
+>
+> **La precisión en tiempo de ejecución sí faltaba, y ya está** (v0.0.9): la
+> cuenta de decimales puede ser el nombre de una variable en `#,.n|x|`,
+> `#.n|x|`, `#!n|x|` y `#^.n|x|`, en los tres motores. Un nombre y no una
+> expresión cualquiera: el `|` que abre el valor es también como se escribe el
+> `or` binario, y el motor del navegador lexea la cuenta dentro del token.
+> Cuando haga falta más, se calcula antes:
+>
+> ```zymbol
+> ancho = exp + 1
+> >> #,.ancho|importe| ¶
+> ```
+>
+> Caso en `corpus/casts/precision_en_ejecucion.zy`. Lo caro no fue el operador
+> sino los **seis recorridos del analizador** que no sabían que ahí dentro había
+> una expresión: sin ellos la destrucción automática liberaba la variable antes
+> de que el operador la leyera.
 
 Es el hueco que decide la forma del programa entero, porque el número de
 decimales de un importe **es configuración**: el peso chileno no tiene unidad
@@ -1091,6 +1139,24 @@ menos el código de salida.
 
 ## GAP-ZYB-007
 
+> **RETIRADO — era falso.** La yuxtaposición **sí** se admite en los argumentos
+> de una llamada, y siempre se admitió:
+>
+> ```zymbol
+> f(x) { <~ "[" x "]" }
+> resto = 7
+> >> f("a" resto) ¶      // [a7]
+> ```
+>
+> El error que la ficha describe abajo sale **igual sin yuxtaposición
+> ninguna** — `g("x", 2)` lo produce— porque no era de la yuxtaposición: era del
+> inferidor de tipos, que obligaba a `String` a todo parámetro yuxtapuesto. Eso
+> es [ERROR-ZYB-005](#error-zyb-005), y está corregido.
+>
+> Es el cuarto hallazgo falso de este log y el segundo con la misma forma: se
+> observó un error, se atribuyó al operador que estaba a la vista y no se probó
+> la misma línea sin él.
+
 **La concatenación por yuxtaposición no se admite en los argumentos de una llamada.**
 
 ```zymbol
@@ -1110,6 +1176,13 @@ y no hay regla escrita que diga cuáles.
 ## GAP-ZYB-008
 
 **Un agregado se puede imprimir pero no se puede llevar a una cadena.**
+
+> **CORREGIDO** en v0.0.9, y **era una divergencia**: la VM de registros y el
+> motor del navegador ya concatenaban arreglos y diccionarios sin problema. El
+> tree-walker mantenía una lista blanca para la yuxtaposición que `>>` no usaba,
+> así que la misma yuxtaposición del mismo valor daba dos respuestas según dónde
+> estuviera escrita. Ahora todo valor yuxtapone, y a exactamente lo que `>>`
+> imprime. Caso en `corpus/collections/agregado_en_cadena.zy`.
 
 ```zymbol
 a = [1, 2, 3]
@@ -1424,6 +1497,15 @@ en lugar de hacia el aislamiento que la regla pide.
 
 **Todo bucle `@ x:colección` escrito en el cuerpo del archivo produce un aviso falso, y la solución que el propio aviso sugiere no analiza.**
 
+> **CORREGIDO** en v0.0.9. **No era una heurística mal calibrada**: un iterador
+> se excluye de la destrucción automática porque el bucle es dueño de su tiempo
+> de vida, y esa exclusión estaba implementada poniendo **la misma marca** que
+> el analizador le reporta al programador. Una marca, dos trabajos. Ahora son
+> dos: `loop_bound` excluye de la destrucción y no le dice nada a nadie.
+>
+> Caso en `corpus/errors/semantic/bucle_sin_aviso_falso.zy`, cuyo golden es su
+> salida de `check` — y tiene que seguir vacía.
+
 ```zymbol
 l = ["a", "b"]
 @ c:l {
@@ -1481,6 +1563,18 @@ tiempos de vida en acumuladores. Este los devalúa a todos.
 
 ## ERROR-ZYB-004
 
+> **RETIRADO — era falso, y el error estaba en la prueba.** El convenio del
+> punto está documentado (`DOT_CONVENTION.md`): un nombre desnudo casa con el
+> nombre del archivo (`# util` en `util.zy`), y **un punto delante nombra la
+> ruta entera unida con `_`** (`# .lib_util` en `lib/util.zy`). El archivo de la
+> reproducción escribía `# .util` dentro de `lib/util.zy`, que efectivamente
+> está mal. `check` tenía razón y `run` es el que no comprueba.
+>
+> **Lo que sí quedaba era el mensaje**, y por eso engañó: decía *«does not match
+> file name 'lib_util'»* sobre un archivo que no existe — `lib_util` es el
+> nombre de MÓDULO que el convenio pide. Ahora dice qué escribir y cita el
+> convenio.
+
 **`zymbol check` rechaza un `<# ../lib/util` que `zymbol run` ejecuta sin problema. Compone el nombre de archivo esperado uniendo la ruta con `_`.**
 
 Es el reverso exacto de [ERROR-ZYB-002](#error-zyb-002): allí `check` calla y la
@@ -1516,6 +1610,52 @@ con las cuatro formas de invocar el archivo, incluida la ruta absoluta.
 **Es anterior a la corrección de [BUG-ZYB-004](#bug-zyb-004)** — se comprobó
 contra la invocación que ya funcionaba antes de tocar nada. Salió al verificar
 aquella, no de ella.
+
+
+---
+
+## ERROR-ZYB-005
+
+**Yuxtaponer un parámetro lo obliga a ser `String`. Los dos motores Rust rechazan un programa correcto; el del navegador lo ejecuta.**
+
+> **CORREGIDO** en v0.0.9. Caso en `corpus/functions/param_yuxtapuesto.zy`.
+
+No se buscó: salió de comprobar [GAP-ZYB-007](#gap-zyb-007), que atribuía a la
+yuxtaposición un error que no era suyo.
+
+**Reproducción.**
+
+```zymbol
+etiquetar(v) { <~ "[" v "]" }
+
+>> etiquetar("texto") ¶
+>> etiquetar(42) ¶
+```
+
+| motor | resultado |
+|-------|-----------|
+| zytw | `error: argument 1 has type Int, but function 'etiquetar' expects String` |
+| zyvm | el mismo error |
+| zyjs | `[texto]` y `[42]` |
+
+**Y una línea más allá, lo mismo funciona.** `>> "[" n "]" ¶` con `n = 42`
+imprime `[42]`: la yuxtaposición acepta Int, Float, Bool, Char y —desde
+[GAP-ZYB-008](#gap-zyb-008)— arreglos y diccionarios. Lo único que cambiaba era
+que el valor entrara por un parámetro.
+
+**La causa.** El analizador anotaba `CompatibleWith(String)` para todo parámetro
+que apareciera en una yuxtaposición, lo resolvía a `String` y luego rechazaba
+cualquier otro tipo en la llamada. La restricción no describía nada real: la
+yuxtaposición no restringe.
+
+**Por qué ninguna suite lo vio, que es lo interesante.** Es una divergencia que
+**rechaza** en vez de dar una respuesta distinta. El consenso compara lo que los
+programas imprimen, y un programa que no compila no imprime nada; los goldens
+comparan salidas, y no hay salida. Toda la maquinaria de este proyecto está
+construida para cazar respuestas distintas, y esta era una **negativa**
+distinta. El corpus no tenía ninguna función que compusiera un mensaje con un
+número —cosa que hace casi cualquier función que componga un mensaje— porque
+nadie puede escribir el caso que su compilador rechaza.
 
 
 # IDEA
