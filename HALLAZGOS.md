@@ -130,7 +130,7 @@ teclado.
 | [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío | abierto |
 | [GAP-ZYB-004](#gap-zyb-004) | GAP | diccionario | las claves del literal deben ser identificadores | abierto |
 | [GAP-ZYB-005](#gap-zyb-005) | GAP | módulos | una función de módulo no es un valor de primera clase | abierto |
-| [GAP-ZYB-006](#gap-zyb-006) | GAP | CLI | un programa no puede fijar su código de salida | abierto |
+| [GAP-ZYB-006](#gap-zyb-006) | GAP | CLI | un programa no puede fijar su código de salida | **corregido** · v0.0.9 |
 | [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | ~~la yuxtaposición no se admite en argumentos de llamada~~ — sí se admite; el error era del inferidor de tipos ([ERROR-ZYB-005](#error-zyb-005)) | **retirado · era falso** |
 | [GAP-ZYB-008](#gap-zyb-008) | GAP | conversión a texto | un agregado se imprime con `>>` pero no se puede llevar a una cadena — solo el TW | **corregido** · v0.0.9 |
 | [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es | abierto |
@@ -1118,6 +1118,36 @@ en una función **con nombre**.
 ## GAP-ZYB-006
 
 **Un programa no puede fijar su código de salida.**
+
+> **CORREGIDO** en v0.0.9, **y sin gastar ningún símbolo**: un `<~` escrito
+> fuera de toda función termina el programa, y su valor es el código de salida.
+>
+> Es la regla 1 de `SYMBOLS.md` § 17 —«derivar, no inventar»— en estado puro.
+> El contrato de `<~` es «devuelve este valor a quien te llamó»; a una función
+> la llama el código de alrededor y a un programa lo llama el sistema
+> operativo, y lo que el sistema recibe de un programa es su código de salida.
+> Un contrato leído en dos posiciones, no dos significados: la regla 6 no se
+> activa.
+>
+> El valor **debe ser entero** y `zymbol check` rechaza cualquier otra cosa. La
+> rama que sale es casi siempre la que menos se ejecuta, así que un error en
+> tiempo de ejecución ahí aparecería el día en que ya había ido algo mal.
+>
+> **Y cerró una divergencia que nadie había reportado**, porque nadie escribe
+> `<~` en el cuerpo de un archivo: la VM y el motor del navegador ya paraban el
+> programa ahí —descartando el valor— y el tree-walker seguía leyendo el resto
+> del archivo. El mismo programa imprimía cosas distintas con `--vm`. La forma
+> ya estaba en el lenguaje; lo único que faltaba era su significado.
+>
+> Casos en `corpus/functions/salida_del_programa.zy` y
+> `corpus/errors/semantic/salida_no_entera.zy`.
+>
+> **Y el arreglo destapó otro fallo, que es el motivo de tener un gate.** Una
+> lambda de expresión con `$!!` dejaba un retorno pendiente que se escapaba al
+> llamante: inofensivo mientras el nivel raíz ignoraba un retorno suelto, y no
+> tanto en cuanto ese retorno pasó a ser el código de salida — `h = (x -> x$!!)`
+> terminaba el programa a media línea. Lo cazó
+> `corpus/lambdas/error_propagate_lambda.zy`, que existía desde v0.0.7.
 
 No hay ninguna forma. `\\` es una nueva línea (`SYMBOLS.md` línea 405, variante
 libre de `¶`), no una salida. El `ROADMAP.md` menciona el código de salida de
