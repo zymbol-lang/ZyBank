@@ -36,6 +36,7 @@
 # .núcleo_almacén {
 
     <# std/db => bd
+    <# std/time => tp
 
     #> {
         abrir
@@ -336,17 +337,29 @@
         <~ #1
     }
 
-    // La fecha de hoy en ISO 8601. No hay `std/time`, así que sale
-    // del sistema por `<\ … \>` — y por eso se fuerza `#09#`
-    // primero: el modo numeral alcanza al intérprete de órdenes, y
-    // una fecha escrita en devanagari no es una fecha ISO.
+    // La fecha de hoy en ISO 8601 (GAP-ZYB-002, cerrado en v0.0.9).
     //
-    // EN: Today in ISO 8601. There is no `std/time`, so it comes
-    // from the shell — hence the forced `#09#`: the numeral mode
-    // reaches the shell, and a date in Devanagari is not ISO 8601.
+    // Aquí estaba el rodeo: `<\ "date +%F" \>`, con `#09#` forzado
+    // delante porque el modo numeral alcanza al intérprete de
+    // órdenes y una fecha en devanagari no es una fecha ISO. Eso
+    // arreglaba la escritura de las cifras **cambiando un estado
+    // global del proceso**, así que pedir la fecha apagaba de paso
+    // el idioma de los números en toda la aplicación — un efecto
+    // que ninguna de las tres líneas anunciaba.
+    //
+    // `std/time` no lo necesita: `today` y `format` devuelven
+    // dígitos ASCII siempre, por decisión del módulo y no por el
+    // estado en que esté el proceso. Se pide la fecha y no se toca
+    // nada más.
+    //
+    // EN: today in ISO 8601. The workaround was `<\ "date +%F" \>`
+    // with `#09#` forced first, which fixed the digits by changing
+    // PROCESS-GLOBAL state — asking for the date also turned off the
+    // language of every number in the application. `std/time` always
+    // answers in ASCII digits by decision of the module, so asking
+    // the date now changes nothing else.
     hoy() {
-        #09#
-        <~ <\ "date +%F" \>
+        <~ tp::today()
     }
 
     // ¿Aquí no hay nada? — y son DOS preguntas, no una.

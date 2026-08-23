@@ -284,8 +284,9 @@
         // Se compara contra la tabla ASCII en vez de llamar a
         // `teclas::es_dígito`, que quiere un Char: un trozo de
         // cadena es una CADENA, y `##!` la rechaza. Lo que llega
-        // aquí siempre es ASCII —`al::hoy()` fuerza `#09#`— así que
-        // la tabla basta.
+        // aquí siempre es ASCII —`std/time` devuelve dígitos ASCII
+        // sea cual sea el modo numeral, por decisión del módulo—
+        // así que la tabla basta.
         //
         // EN: the incoming date is broken into its eight digits, so
         // what is proposed comes in through the same door as what is

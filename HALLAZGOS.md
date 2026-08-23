@@ -21,8 +21,9 @@
 >
 > **Los dos hallazgos del diccionario están cerrados** (GAP-ZYB-003 y 004), y
 > con la salida que el lenguaje llevaba dos versiones descartando: el
-> diccionario tiene notación propia, `#(…)`. Quedan por decidir o implementar
-> GAP-ZYB-002, 005 y 009, ERROR-ZYB-001 y 002, y las dos IDEA.
+> diccionario tiene notación propia, `#(…)`. **Y GAP-ZYB-002 también**: existe
+> `std/time`, nativo en los tres motores. Quedan por decidir o implementar
+> GAP-ZYB-005 y 009, ERROR-ZYB-001 y 002, y las dos IDEA.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
 > es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
@@ -128,7 +129,7 @@ teclado.
 | [BUG-ZYB-010](#bug-zyb-010) | BUG | errores (TW y VM) | un `:>` (finally) **no se ejecuta entero** cuando el bloque `!?` retorna: el TW se comía media sentencia, la VM se lo saltaba del todo | **corregido** · v0.0.9 |
 | [BUG-ZYB-011](#bug-zyb-011) | BUG | errores (JS) | un `<~` escrito **dentro** de un `:>` retorna desde ahí en los dos motores Rust y se ignora en el del navegador | **corregido** · v0.0.9 |
 | [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | ~~no hay precisión decimal en tiempo de ejecución **ni relleno de ceros**~~ — el relleno ya existía en `#,.N`; la precisión variable ya se puede escribir | **corregido · enunciado a medias** |
-| [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes | abierto |
+| [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes — ahora hay siete funciones nativas en los tres motores | **corregido** · v0.0.9 |
 | [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío — el diccionario tiene notación propia, `#(…)`, y `#()` es el vacío | **corregido** · v0.0.9 |
 | [GAP-ZYB-004](#gap-zyb-004) | GAP | diccionario | las claves del literal deben ser identificadores — `#("con.puntos": v)` ya se escribe | **corregido** · v0.0.9 |
 | [GAP-ZYB-005](#gap-zyb-005) | GAP | módulos | una función de módulo no es un valor de primera clase | abierto |
@@ -1011,6 +1012,66 @@ en el lenguaje y no en los programas.
 ## GAP-ZYB-002
 
 **No hay `std/time`. La fecha sale del intérprete de órdenes.**
+
+> **CORREGIDO** en v0.0.9: `std/time`, siete funciones **nativas en los tres
+> motores** — `now`, `today`, `parts`, `of`, `format`, `add`, `diff`.
+>
+> ```zymbol
+> <# std/time => t
+> hoy    = t::today()                              // 2026-08-23
+> vence  = t::of(2026, 9, 30)
+> desde  = t::add(t::now(), -30, "day")            // los últimos treinta días
+> atraso = t::diff(t::now(), vence, "day")
+> >> t::format(vence, "%F %T %z", "-0400") ¶
+> ```
+>
+> **Nativo y no un módulo en Zymbol sobre el shell**, que era la salida barata.
+> Los puntos 1 y 4 de esta misma ficha la descartan: el shell no existe en el
+> navegador y `date +%F` no está en Windows, que es justo donde `std/db` **sí**
+> viene incluido. Un `std/time` escrito sobre `<\ … \>` habría dejado la
+> aplicación que más necesita la base como la que peor consigue la fecha, y
+> cada archivo de corpus que lo tocara etiquetado `BASH_EXEC` para `zyjs`.
+> `std/env` se descartó en v0.0.7 por **redundante** con el shell; el tiempo no
+> lo es, y la diferencia es el punto 2: `date +%F` devuelve una cadena, y de una
+> cadena no se puede preguntar «hace treinta días».
+>
+> **Los cuatro arrastres, uno por uno.** (1) Nativo, así que Windows y el
+> navegador quedan cubiertos. (2) `add` y `diff` toman una **unidad**
+> —`millisecond second minute hour day week month year`— y por eso no son `+` y
+> `-` escritos otra vez: sumar un mes no es aritmética de enteros. Debajo del
+> día es duración y del día para arriba es calendario, así que un mes cae en el
+> mismo día del mes —recortado: 31 de enero + 1 mes = 28 de febrero— y un día a
+> través de un cambio de horario de verano sigue siendo un día. (3) `format` y
+> `today` devuelven **dígitos ASCII siempre**, por decisión del módulo y no por
+> el estado del proceso: una fecha es el único texto que un programa escribe
+> para que lo lea una máquina, y `२०२६-०८-२३` no es ISO 8601 — la fecha para
+> una persona se compone desde `parts`, cuyos números sí siguen al modo. (4)
+> Corre en el navegador: `zymbol.js` porta el calendario en vez de delegar en
+> `Date`, que convierte 2026-13-01 en enero de 2027 en lugar de rechazarlo.
+>
+> **Lo que cambió en la aplicación.** `núcleo/almacén.zy::hoy()` es
+> `tp::today()`, y con ello desaparece un efecto global que ninguna de sus tres
+> líneas anunciaba: el `#09#` que forzaba —necesario mientras hablara con el
+> intérprete de órdenes— **apagaba el idioma de las cifras en toda la
+> aplicación** cada vez que alguien pedía la fecha. Ahora pedir la fecha no
+> toca nada más.
+>
+> **Lo que NO cambió, y queda pendiente del lado de la aplicación:** `resumen`
+> sigue pidiendo el rango completo escrito a mano (`0000-01-01` a `9999-12-31`)
+> en vez de ofrecer «el mes pasado» o «los últimos 30 días», y las tres órdenes
+> que aceptan una fecha del usuario la guardan **sin validar** — hoy
+> `zybank anotar … 2026-02-30` se anota. `t::of` la rechaza con un `##Time`
+> blando; conectarlo es trabajo de la aplicación.
+>
+> El calendario —los algoritmos de era de Howard Hinnant, exactos sobre el
+> gregoriano proléptico— vive en `zymbol-intrinsics` y lo comparten el
+> tree-walker y la VM, en vez de escribirse dos veces como `std/term`: dos
+> motores se pueden mantener de acuerdo sobre una regla de relleno leyéndolos
+> en paralelo, y no se pueden mantener de acuerdo sobre los años bisiestos.
+> Casos en `zyquality/corpus/stdlib/stdlib_time.zy` y
+> `stdlib_time_clock.zy` — el segundo mete un **reloj** en un corpus que decide
+> comparando salidas, imprimiendo solo lo que tiene que cumplirse fuera cual
+> fuera la respuesta.
 
 ```zymbol
 hoy() {
