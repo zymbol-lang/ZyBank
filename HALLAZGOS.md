@@ -19,8 +19,10 @@
 > uno: `zyq suite` da *all gates pass*, con 637 archivos de corpus, **0
 > divergencias** entre los tres motores y ningún retroceso de rendimiento.
 >
-> Quedan por decidir o implementar GAP-ZYB-002 a 006, 009 y 012, ERROR-ZYB-001 y
-> 002, y las dos IDEA.
+> **Los dos hallazgos del diccionario están cerrados** (GAP-ZYB-003 y 004), y
+> con la salida que el lenguaje llevaba dos versiones descartando: el
+> diccionario tiene notación propia, `#(…)`. Quedan por decidir o implementar
+> GAP-ZYB-002, 005 y 009, ERROR-ZYB-001 y 002, y las dos IDEA.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
 > es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
@@ -127,8 +129,8 @@ teclado.
 | [BUG-ZYB-011](#bug-zyb-011) | BUG | errores (JS) | un `<~` escrito **dentro** de un `:>` retorna desde ahí en los dos motores Rust y se ignora en el del navegador | **corregido** · v0.0.9 |
 | [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | ~~no hay precisión decimal en tiempo de ejecución **ni relleno de ceros**~~ — el relleno ya existía en `#,.N`; la precisión variable ya se puede escribir | **corregido · enunciado a medias** |
 | [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes | abierto |
-| [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío | abierto |
-| [GAP-ZYB-004](#gap-zyb-004) | GAP | diccionario | las claves del literal deben ser identificadores | abierto |
+| [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío — el diccionario tiene notación propia, `#(…)`, y `#()` es el vacío | **corregido** · v0.0.9 |
+| [GAP-ZYB-004](#gap-zyb-004) | GAP | diccionario | las claves del literal deben ser identificadores — `#("con.puntos": v)` ya se escribe | **corregido** · v0.0.9 |
 | [GAP-ZYB-005](#gap-zyb-005) | GAP | módulos | una función de módulo no es un valor de primera clase | abierto |
 | [GAP-ZYB-006](#gap-zyb-006) | GAP | CLI | un programa no puede fijar su código de salida | **corregido** · v0.0.9 |
 | [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | ~~la yuxtaposición no se admite en argumentos de llamada~~ — sí se admite; el error era del inferidor de tipos ([ERROR-ZYB-005](#error-zyb-005)) | **retirado · era falso** |
@@ -1045,6 +1047,38 @@ Un `std/time` nace con esa restricción ya conocida.
 
 **No hay literal de diccionario vacío.**
 
+> **CORREGIDO** en v0.0.9, y con la salida que `COLLECTIONS.md` había descartado
+> dos veces: **el diccionario tiene notación propia**. `#(a: 1)` es el
+> diccionario, `#()` es el vacío, `(1, 2)` sigue siendo la tupla posicional, y
+> el `(a: 1)` a secas se **rechaza**.
+>
+> Lo que forzó la notación es exactamente este hallazgo. Mientras el diccionario
+> tuvo contenido, los dos puntos bastaban para distinguirlo de la tupla, y eso
+> es lo que `COLLECTIONS.md` aceptaba a propósito: la alternativa era una
+> notación nueva y `{}` es el delimitador de bloque de todo el lenguaje. **El
+> vacío es donde el argumento se rompe**, porque no hay dos puntos que mirar:
+> `()` tendría que ser la tupla vacía y el diccionario vacío a la vez, y no son
+> el mismo valor —uno admite `d["k"]$~ v` y el otro contesta que las tuplas son
+> inmutables.
+>
+> **No hizo falta gastar un símbolo nuevo**, que era el reparo de fondo. `#` es
+> la marca de meta/tipo que ya usa `#[…]` para declarar la mezcla de un arreglo:
+> decir cuál de las dos cosas abre un paréntesis es una afirmación sobre su
+> tipo, no un signo inventado. La regla 1 de `SYMBOLS.md` § 17 —derivar, no
+> inventar— se cumple igual que en GAP-ZYB-006.
+>
+> El patrón se escribe como el literal: `#(a: uno, b: dos) = d`.
+>
+> `núcleo/mapa.zy::vacío()` —la función que existía solo para este rodeo— pasa a
+> ser `#()`. Se migraron 276 literales entre el corpus, las aplicaciones y los
+> ejemplos, y el gate quedó en 642 archivos de corpus con **0 divergencias**
+> entre los tres motores. Casos en
+> `zyquality/corpus/collections/dict_marcado.zy` y
+> `zyquality/reject/collections/06_dict_sin_marca.zy`; la decisión está en
+> `interpreter/COLLECTIONS.md` y la contradicción C-1 de
+> `Divergente_ES/forma/README.md` quedó enmendada, porque se había resuelto por
+> la salida contraria.
+
 ```zymbol
 d = ()          // error: expected expression, found RParen
 ```
@@ -1068,6 +1102,29 @@ sitio del programa a propósito.
 ## GAP-ZYB-004
 
 **Las claves de un literal de diccionario deben ser identificadores.**
+
+> **CORREGIDO** en v0.0.9, en el mismo cambio que [GAP-ZYB-003](#gap-zyb-003):
+> una clave del literal puede ser una cadena.
+>
+> ```zymbol
+> c = #("gasto.alimentación": "Alimentación", "ingreso.sueldo": "Sueldo")
+> >> c["gasto.alimentación"] ¶
+> ```
+>
+> Los dos hallazgos son el mismo defecto visto por dos lados —el literal se
+> había quedado del lado del registro mientras el corchete ya era el de un
+> diccionario— y por eso se cerraron juntos.
+>
+> **La clave no interpola.** `#("{n}": v)` es un error de análisis, no un
+> descuido: una clave es una constante, y un literal que cambia de forma en cada
+> ejecución no es un literal. Para la clave calculada está `d[k]$~ v`, que es
+> justo la operación que separa un diccionario de un registro.
+>
+> **El rodeo de la aplicación sigue en pie y ya no hace falta.** Los catálogos
+> de `idioma/` se escriben como listas de pares que `mp::desde_pares` convierte
+> —52 claves × 4 idiomas— porque sus claves llevan prefijo de dominio y el
+> literal no las admitía. Ahora sí las admite, así que `desde_pares` deja de ser
+> necesario ahí; migrarlos es trabajo de la aplicación, y queda pendiente.
 
 ```zymbol
 c = ("gasto.alimentación": "Alimentación")   // error de análisis

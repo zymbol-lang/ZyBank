@@ -68,7 +68,7 @@
     // identifiers, and `言語` and `भाषा` are — Zymbol admits
     // identifiers in any script, which is exactly the point.
     _alias() {
-        <~ (
+        <~ #(
             language: "idioma",   言語: "idioma",   भाषा: "idioma",
             currency: "moneda",   通貨: "moneda",   मुद्रा: "moneda",
             database: "base",     口座簿: "base",    डेटाबेस: "base",

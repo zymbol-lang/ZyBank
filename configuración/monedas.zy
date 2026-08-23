@@ -43,15 +43,15 @@
     // disable); decimal = decimal mark (moot at exponent 0);
     // espacio = space between symbol and amount.
     tabla() {
-        <~ (
-            CLP: (código: "CLP", exponente: 0, símbolo: "$",   posición: "antes",   miles: ".", decimal: ",", espacio: #0, nombre: "Peso chileno"),
-            USD: (código: "USD", exponente: 2, símbolo: "$",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Dólar estadounidense"),
-            EUR: (código: "EUR", exponente: 2, símbolo: "€",   posición: "después", miles: ".", decimal: ",", espacio: #1, nombre: "Euro"),
-            GBP: (código: "GBP", exponente: 2, símbolo: "£",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Libra esterlina"),
-            JPY: (código: "JPY", exponente: 0, símbolo: "¥",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Yen japonés"),
-            KWD: (código: "KWD", exponente: 3, símbolo: "د.ك", posición: "después", miles: ",", decimal: ".", espacio: #1, nombre: "Dinar kuwaití"),
-            MXN: (código: "MXN", exponente: 2, símbolo: "$",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Peso mexicano"),
-            PEN: (código: "PEN", exponente: 2, símbolo: "S/",  posición: "antes",   miles: ",", decimal: ".", espacio: #1, nombre: "Sol peruano")
+        <~ #(
+            CLP: #(código: "CLP", exponente: 0, símbolo: "$",   posición: "antes",   miles: ".", decimal: ",", espacio: #0, nombre: "Peso chileno"),
+            USD: #(código: "USD", exponente: 2, símbolo: "$",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Dólar estadounidense"),
+            EUR: #(código: "EUR", exponente: 2, símbolo: "€",   posición: "después", miles: ".", decimal: ",", espacio: #1, nombre: "Euro"),
+            GBP: #(código: "GBP", exponente: 2, símbolo: "£",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Libra esterlina"),
+            JPY: #(código: "JPY", exponente: 0, símbolo: "¥",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Yen japonés"),
+            KWD: #(código: "KWD", exponente: 3, símbolo: "د.ك", posición: "después", miles: ",", decimal: ".", espacio: #1, nombre: "Dinar kuwaití"),
+            MXN: #(código: "MXN", exponente: 2, símbolo: "$",   posición: "antes",   miles: ",", decimal: ".", espacio: #0, nombre: "Peso mexicano"),
+            PEN: #(código: "PEN", exponente: 2, símbolo: "S/",  posición: "antes",   miles: ",", decimal: ".", espacio: #1, nombre: "Sol peruano")
         )
     }
 

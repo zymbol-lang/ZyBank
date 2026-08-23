@@ -35,14 +35,20 @@
 
     #> { vacío, desde_pares, claves, fusionar, obtener_o }
 
-    // La única clave centinela del programa, y solo vive dos
-    // líneas. EN: the program's only sentinel key, alive for two
-    // lines.
-    vacío() {
-        d = (·: "")
-        d$-["·"]
-        <~ d
-    }
+    // Un diccionario vacío, que desde v0.0.9 se escribe.
+    //
+    // Aquí vivía el rodeo de GAP-ZYB-003: el diccionario vacío era un valor
+    // alcanzable que el lenguaje no sabía escribir, así que este módulo lo
+    // fabricaba con una clave centinela —`(·: "")`— y se la quitaba en la
+    // línea siguiente. Estaba en un solo sitio del programa a propósito,
+    // para que el rodeo se pudiera borrar de una vez el día que dejara de
+    // hacer falta. Este es ese borrado.
+    //
+    // EN: an empty dictionary, writable since v0.0.9. This is where
+    // GAP-ZYB-003's workaround lived — a sentinel key invented and removed
+    // one line later — kept in a single place so it could be deleted in one
+    // edit. This is that edit.
+    vacío() { <~ #() }
 
     desde_pares(pares) {
         d = vacío()
