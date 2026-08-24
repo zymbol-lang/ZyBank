@@ -31,7 +31,12 @@
 > ninguna suite podía ver, porque ningún archivo del corpus compara dos.
 >
 > **BUG-ZYB-012 quedó corregido el mismo día**: `==` sobre una función es
-> identidad, en los tres motores. Quedan por decidir o implementar GAP-ZYB-009,
+> identidad, en los tres motores.
+>
+> **GAP-ZYB-009 quedó cerrado el 2026-08-24** por el análisis de
+> [`TIPOS.md`](TIPOS.md): `##_` pasa a escribirse, y la pregunta es `v == ##_`.
+> Implementarlo destapó **ERROR-ZYB-006** y cerró de paso las cuatro
+> divergencias que el análisis había medido. Quedan por decidir o implementar
 > ERROR-ZYB-001 y 002, y las dos IDEA.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
@@ -152,7 +157,7 @@ teclado.
 | [GAP-ZYB-006](#gap-zyb-006) | GAP | CLI | un programa no puede fijar su código de salida | **corregido** · v0.0.9 |
 | [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | ~~la yuxtaposición no se admite en argumentos de llamada~~ — sí se admite; el error era del inferidor de tipos ([ERROR-ZYB-005](#error-zyb-005)) | **retirado · era falso** |
 | [GAP-ZYB-008](#gap-zyb-008) | GAP | conversión a texto | un agregado se imprime con `>>` pero no se puede llevar a una cadena — solo el TW | **corregido** · v0.0.9 |
-| [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es | abierto |
+| [GAP-ZYB-009](#gap-zyb-009) | GAP | `std/db` | no hay forma de preguntar si una columna vino `NULL`, ni queda documentado qué es — `##_` se escribe y la pregunta es `v == ##_` | **corregido** · v0.0.9 |
 | [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | ~~no hay forma de escribir un carácter de control~~ — sí la hay: `0d27` es ESC, y `##!` da el punto de código | **retirado · era falso** |
 | [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | ~~las flechas del teclado no se pueden usar sin perder la tecla ESC~~ — `<<|` las entrega decodificadas y ESC sigue llegando solo | **retirado · era falso** |
 | [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `#\|c\|` da el VALOR de la cifra en las 69, y ningún programa declara cero alguno | **corregido** · v0.0.9 |
@@ -160,6 +165,7 @@ teclado.
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | **corregido** · v0.0.9 |
 | [ERROR-ZYB-004](#error-zyb-004) | ERROR | `check` / analizador | ~~`zymbol check` rechaza un `<# ../lib/util` que `zymbol run` ejecuta~~ — el convenio del punto dice que `# .lib_util` nombra la ruta entera; el archivo de la prueba estaba mal escrito | **retirado · era falso** |
+| [ERROR-ZYB-006](#error-zyb-006) | ERROR | inferidor de tipos | comparar un parámetro con `==` lo ata a ese tipo, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta — la misma forma que ERROR-ZYB-005 | **corregido** · v0.0.9 |
 | [ERROR-ZYB-005](#error-zyb-005) | ERROR | inferidor de tipos | yuxtaponer un parámetro lo obliga a ser `String`, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta | **corregido** · v0.0.9 |
 | [IDEA-ZYB-001](#idea-zyb-001) | IDEA | doctrina i18n | el formato numérico es un cuarto eje que `USERAPPI18N.md` no cubre | propuesta |
 | [IDEA-ZYB-002](#idea-zyb-002) | IDEA | doctrina | el dinero como entero + exponente merece ser doctrina escrita | propuesta |
@@ -1539,8 +1545,39 @@ Hay que comparar elemento por elemento.
 >   `##_` en los dos Rust, por un caso especial que existe para una situación
 >   que el analizador ya impide.
 >
-> Las tres salidas están evaluadas contra las ocho reglas de `SYMBOLS.md` § 17
-> en `TIPOS.md` § 7. Sin decidir.
+> **CORREGIDO** en v0.0.9 por la salida (a): **`##_` pasa a poder escribirse**,
+> y con eso la pregunta es una comparación corriente.
+>
+> ```zymbol
+> es_nulo(v) { <~ v == ##_ }
+> ? es_nulo(fila.nota) { >> "esa columna vino NULL" ¶ }
+> ```
+>
+> No se gastó marca nueva: `##_` ya era el símbolo de tipo de Unit y ya era la
+> marca de «cualquier clase» en `:! ##_`, y las dos son la lectura que `_` tiene
+> en sus otros ocho sitios. Unit tiene un solo valor, así que nombrar el tipo y
+> nombrar el valor no se pueden distinguir ni hace falta.
+>
+> **`núcleo/almacén.zy::es_nulo` era un fallo vivo** y queda corregido con él:
+> miraba la cuenta de `#?`, que vale 0 para cuatro valores —`Unit`, `""`, `[]` y
+> `#()`—, así que contestaba que una glosa vacía vino `NULL`.
+>
+> **Cerrar esto obligó a cerrar otras cuatro cosas**, y ninguna la veía el gate:
+>
+> - **[ERROR-ZYB-006](#error-zyb-006)**, nuevo: comparar un parámetro con `==`
+>   lo ataba a ese tipo, así que `es_nulo(v) { <~ v == ##_ }` solo se podía
+>   llamar con algo que ya fuera `Unit` — inútil para la única pregunta que
+>   existe para responder. Era anterior a esto y de la misma forma que
+>   ERROR-ZYB-005.
+> - `Unit == Unit` daba `#0` en la VM: un Unit no era igual a sí mismo.
+> - Yuxtaponer un Unit metía `()` en la VM y nada en los otros dos.
+> - `f#?` sobre una función **con nombre** contestaba `##_` en los dos Rust, por
+>   un caso especial muerto que existía para una situación que el analizador ya
+>   impide.
+>
+> Casos en `zyquality/corpus/collections/unidad_literal.zy`; el análisis
+> completo y las tres salidas evaluadas contra `SYMBOLS.md` § 17 están en
+> [`TIPOS.md`](TIPOS.md).
 
 Una columna opcional es lo corriente en cualquier esquema. Aquí lo son
 `movimientos.categoría` (los asientos de un traspaso no tienen categoría) y
@@ -2009,6 +2046,42 @@ nadie puede escribir el caso que su compilador rechaza.
 
 
 # IDEA
+
+## ERROR-ZYB-006
+
+**Comparar un parámetro con `==` lo ata a ese tipo, y los dos motores Rust rechazan un programa correcto.**
+
+> **CORREGIDO** en v0.0.9. `==` no ata nada, por lo mismo que no lo ataba la
+> yuxtaposición: **`==` nunca coacciona**. `"5" == 5` es una expresión legal que
+> contesta `#0`, y `REFERENCE.md` lo dice con esas palabras.
+
+```zymbol
+es_cinco(v) { <~ v == 5 }
+>> es_cinco("hola") ¶       // error: argument 1 has type String, but 'es_cinco' expects Int
+>> ("hola" == 5) ¶          // una línea más allá: #0
+```
+
+El motor del navegador ejecuta el programa entero. Es la forma exacta de
+[ERROR-ZYB-005](#error-zyb-005) —una divergencia que **rechaza** en vez de
+ejecutar mal, así que no imprime nada que un golden pueda comparar— y llevaba
+ahí desde antes.
+
+**Salió al cerrar [GAP-ZYB-009](#gap-zyb-009)**, y lo bloqueaba: el predicado
+que todo el mundo va a escribir es
+
+```zymbol
+es_nulo(v) { <~ v == ##_ }
+```
+
+y la restricción lo dejaba llamable solo con algo que ya fuera `Unit` — inútil
+para la única pregunta que existe para responder. Un hueco que nadie había
+pisado se volvió el camino principal en cuanto el literal existió.
+
+**El orden conserva la restricción.** `<`, `>`, `<=` y `>=` sí fallan en
+ejecución cuando un número se topa con texto que no es un número, así que el
+analizador hace bien en decirlo antes.
+
+---
 
 ## IDEA-ZYB-001
 

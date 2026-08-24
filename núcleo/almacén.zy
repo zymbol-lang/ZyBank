@@ -377,12 +377,28 @@
     //   sin_fila(v)   la consulta no encontró la fila   → `$!`
     //   es_nulo(v)    la columna venía NULL             → sigue `Unit`
     //
-    // `es_nulo` se queda porque el caso de la columna NO se arregló:
-    // un `NULL` sigue llegando como `Unit`, que no es un error, no es
-    // la cadena vacía y no es cero, y la única forma de preguntarlo
-    // es destructurar la reflexión de tipo y mirar el segundo campo,
-    // que vale 0 cuando no hay valor. Ni siquiera vale comparar, y
-    // `"" v` sobre un `Unit` aborta. Eso es GAP-ZYB-009, abierto.
+    // `es_nulo` se queda porque las dos preguntas son distintas: la
+    // fila puede existir y traer la columna vacía. Lo que cambió es
+    // CÓMO se pregunta (GAP-ZYB-009, cerrado en v0.0.9).
+    //
+    // Aquí había un rodeo, y estaba MAL. Decía:
+    //
+    //     (_t, hay, _val) = v#?
+    //     <~ hay == 0
+    //
+    // La cuenta de `#?` vale 0 para CUATRO valores, no uno: `Unit`,
+    // la cadena vacía, el arreglo vacío y el diccionario vacío. Así
+    // que `es_nulo("")` contestaba que la columna vino `NULL` —y
+    // `movimientos.glosa` es TEXT, donde `''` es cosa de todos los
+    // días. El fallo no venía de un despiste: venía de que la forma
+    // correcta de preguntar no existía, y la que uno se inventa se
+    // parece lo bastante a la correcta como para pasar las pruebas
+    // que a uno se le ocurren. Ver `TIPOS.md` § 3.6.
+    //
+    // EN: this asked the WRONG question. `#?`s count is 0 for four
+    // values — Unit, "", [] and #() — so `es_nulo("")` said the
+    // column arrived NULL, and `movimientos.glosa` is TEXT. `##_` is
+    // writable since v0.0.9, so the question is now a comparison.
     //
     // EN: two questions, not one. Until BUG-ZYB-007 was fixed they
     // were the same: `std/db` returned `Unit` both for a NULL column
@@ -393,10 +409,7 @@
     // not fixed: a NULL still arrives as `Unit` (GAP-ZYB-009).
     sin_fila(v) { <~ v$! }
 
-    es_nulo(v) {
-        (_t, hay, _val) = v#?
-        <~ hay == 0
-    }
+    es_nulo(v) { <~ v == ##_ }
 
     // ── Cuentas ──────────────────────────────────────────────
 

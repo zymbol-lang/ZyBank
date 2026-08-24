@@ -15,6 +15,13 @@
 > **Lo que la medición encontró.** Cuatro divergencias vivas entre los tres
 > motores, ninguna de las cuales el gate podía ver, y un fallo en ZyBank causado
 > por el rodeo que la propia ficha de GAP-ZYB-009 proponía. Están en el § 6.
+>
+> **Resuelto el 2026-08-24 por la salida (a) del § 7**: `##_` pasa a escribirse.
+> Con ello se cerraron GAP-ZYB-009, las cuatro divergencias, el fallo de la
+> aplicación y **un quinto que apareció al implementarlo** —ERROR-ZYB-006, que
+> lo bloqueaba—. Lo que sigue se deja como se midió, en presente: es el estado
+> del que se partió, y una tabla a la que se le edita una fila es una tabla que
+> nadie ejecutó nunca. Las correcciones están anotadas donde tocan.
 
 ---
 
@@ -221,7 +228,12 @@ dentro de una tupla, sale de una consulta— y el lenguaje no sabe nombrarlo.
 **Es exactamente la forma de [GAP-ZYB-003](HALLAZGOS.md#gap-zyb-003)**, el
 diccionario vacío: un valor que el programa podía tener y no podía escribir, y
 que por eso obligaba a fabricarlo con un rodeo. Aquel se cerró dándole notación
-propia; este sigue abierto.
+propia.
+
+> **CERRADO el 2026-08-24.** `##_` se escribe, en los tres motores y en las dos
+> posiciones —literal y marca de «cualquier clase» en `:! ##_`—, y con eso el
+> paradigma de tipos deja de tener un hueco: los doce símbolos nombran ahora
+> valores que se pueden escribir. Ver `HALLAZGOS.md` § GAP-ZYB-009.
 
 ---
 
@@ -343,6 +355,29 @@ un caso que no ocurre, que a cambio da una respuesta falsa en uno que sí.
 no sabe qué contestar, y por eso es donde se acumulan las respuestas
 inventadas.
 
+> **Las cuatro corregidas el 2026-08-24**, al implementar la salida (a).
+> D-1 era el cuarto brazo que faltaba en `cmp_direct` de la VM, después de
+> `Array` (DM-02), `NamedTuple` (DM-22) y `Function` (BUG-ZYB-012) — cuatro
+> veces la misma forma en la misma función, que no comparte código con
+> `Value::equals`. D-2 era la ruta de construcción de cadenas de la VM usando la
+> forma anidada para un Unit suelto. D-4 eran **tres** casos especiales, uno por
+> motor, y los tres borrados. Fijadas en
+> `zyquality/corpus/collections/unidad_literal.zy`.
+>
+> **D-3 estaba mal enunciada y no es de `##_`.** Un Unit dentro de una colección
+> es alcanzable en los tres motores por `js::decode("[1, null, 3]")`, se imprime
+> `[1, (), 3]` y vuelve a `null` — los tres coinciden. Lo que diverge es otra
+> cosa: el motor del navegador **no implementa la comprobación de homogeneidad
+> en `$+`**, y también acepta `[1,2] $+ "tres"`, que los dos Rust rechazan. Es
+> un diagnóstico que le falta a `zyjs`, no una discrepancia sobre Unit, y sigue
+> abierto.
+>
+> **Y apareció una quinta al implementarlo**, que bloqueaba la salida (a):
+> comparar un parámetro con `==` lo ataba a ese tipo, así que
+> `es_nulo(v) { <~ v == ##_ }` solo se podía llamar con algo que ya fuera Unit.
+> Es [ERROR-ZYB-006](HALLAZGOS.md#error-zyb-006), anterior a todo esto y de la
+> misma forma que ERROR-ZYB-005; corregido con lo demás.
+
 ### A-1 · y el fallo de la aplicación
 
 `núcleo/almacén.zy::es_nulo` contesta `#1` para `""`, `[]` y `#()` (§ 3.6).
@@ -403,7 +438,12 @@ la evidente, la evidente está mal, y la aplicación que descubrió el hallazgo 
 tiene puesta hoy. Documentar una forma que hay que escribir a mano en cada
 programa es aceptar que unos cuantos la escribirán mal.
 
-### Recomendación
+### Decisión — **(a)**, tomada el 2026-08-24
+
+Implementada en los tres motores, con D-1 corregido antes por ser bloqueante.
+Y con una sorpresa que la lista de arriba no anticipaba: ERROR-ZYB-006, que
+también la bloqueaba y que nadie había pisado porque hasta ahora no había
+ninguna razón para comparar un parámetro contra un literal de tipo fijo.
 
 **(a)**, con D-1 corregido antes. Es la que no gasta símbolo, la que repite una
 decisión que este mismo proyecto tomó y validó hace dos días, y la única que
