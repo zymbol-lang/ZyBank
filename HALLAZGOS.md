@@ -22,8 +22,16 @@
 > **Los dos hallazgos del diccionario están cerrados** (GAP-ZYB-003 y 004), y
 > con la salida que el lenguaje llevaba dos versiones descartando: el
 > diccionario tiene notación propia, `#(…)`. **Y GAP-ZYB-002 también**: existe
-> `std/time`, nativo en los tres motores. Quedan por decidir o implementar
-> GAP-ZYB-005 y 009, ERROR-ZYB-001 y 002, y las dos IDEA.
+> `std/time`, nativo en los tres motores.
+>
+> **El 2026-08-24 se retiró GAP-ZYB-005** —una función de módulo sí es un valor
+> de primera clase; `b::doble` no es una expresión porque `::` es la sintaxis de
+> llamada y un módulo no es una clase— y probarlo destapó **BUG-ZYB-012**, una
+> divergencia viva de los tres motores sobre la igualdad de funciones que
+> ninguna suite podía ver, porque ningún archivo del corpus compara dos.
+>
+> Quedan por decidir o implementar BUG-ZYB-012, GAP-ZYB-009, ERROR-ZYB-001 y
+> 002, y las dos IDEA.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
 > es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
@@ -46,7 +54,7 @@ científico, un auditor de código y dos juegos de tablero. Ninguno tenía:
 | **datos que sobreviven al idioma** | lo guardado son claves; los nombres se traducen al mostrarse, y una base creada en japonés se lee en español |
 | **configuración con precedencia** | archivo JSON sobre lo recordado en la base |
 
-De los treinta hallazgos —11 BUG, 12 GAP, 5 ERROR, 2 IDEA— la mitad larga sale
+De los treinta y un hallazgos —12 BUG, 12 GAP, 5 ERROR, 2 IDEA— la mitad larga sale
 de esas intersecciones y no de una característica aislada, que es el argumento
 de `LDV.md` § 4 en concreto. Los dos peores lo dejan claro: pasar una función
 entre módulos rompe en el tree-walker de una manera
@@ -64,8 +72,14 @@ teclado pierde el modificador Control y colapsa dos teclas en una
 ([BUG-ZYB-006](#bug-zyb-006)) y el tree-walker repinta un estado que ya se
 había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
 
-**Seis** hallazgos de esta lista resultaron ser **falsos o mal enunciados**, y
-merecen decirse aquí antes que en su ficha. Los dos últimos salieron al
+**Siete** hallazgos de esta lista resultaron ser **falsos o mal enunciados**, y
+merecen decirse aquí antes que en su ficha. El séptimo,
+[GAP-ZYB-005](#gap-zyb-005), llegó el 2026-08-24 y repite la forma exacta de los
+otros cinco: decía que una función de módulo no es un valor de primera clase
+tras probar `b::doble`, que no es una expresión **porque `::` es la sintaxis de
+llamada**. Lo notó quien mantiene el lenguaje con una sola frase —«los módulos
+en Zymbol no son clases»—, y las ocho sondas que la comprobaron pasan en los
+tres motores. Los dos últimos salieron al
 revisarlos uno por uno: [GAP-ZYB-007](#gap-zyb-007) culpaba a la yuxtaposición
 de un error del inferidor de tipos, y [GAP-ZYB-001](#gap-zyb-001) daba por
 ausente un relleno de ceros que el lenguaje tenía, tras probarlo con el operador
@@ -128,11 +142,12 @@ teclado.
 | [BUG-ZYB-009](#bug-zyb-009) | BUG | errores (TW) | `$!!` dentro de un `!?` **se captura como excepción** — TW sí, VM y JS no, y la documentación da la razón a estos dos | **corregido** · v0.0.9 |
 | [BUG-ZYB-010](#bug-zyb-010) | BUG | errores (TW y VM) | un `:>` (finally) **no se ejecuta entero** cuando el bloque `!?` retorna: el TW se comía media sentencia, la VM se lo saltaba del todo | **corregido** · v0.0.9 |
 | [BUG-ZYB-011](#bug-zyb-011) | BUG | errores (JS) | un `<~` escrito **dentro** de un `:>` retorna desde ahí en los dos motores Rust y se ignora en el del navegador | **corregido** · v0.0.9 |
+| [BUG-ZYB-012](#bug-zyb-012) | BUG | igualdad (los 3 motores) | comparar dos funciones da `#0` en los dos motores Rust y `#1` en el del navegador, incluso para dos nombres de la MISMA función; no está documentado ni probado en ninguna parte | abierto |
 | [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | ~~no hay precisión decimal en tiempo de ejecución **ni relleno de ceros**~~ — el relleno ya existía en `#,.N`; la precisión variable ya se puede escribir | **corregido · enunciado a medias** |
 | [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes — ahora hay siete funciones nativas en los tres motores | **corregido** · v0.0.9 |
 | [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío — el diccionario tiene notación propia, `#(…)`, y `#()` es el vacío | **corregido** · v0.0.9 |
 | [GAP-ZYB-004](#gap-zyb-004) | GAP | diccionario | las claves del literal deben ser identificadores — `#("con.puntos": v)` ya se escribe | **corregido** · v0.0.9 |
-| [GAP-ZYB-005](#gap-zyb-005) | GAP | módulos | una función de módulo no es un valor de primera clase | abierto |
+| [GAP-ZYB-005](#gap-zyb-005) | GAP | módulos | ~~una función de módulo no es un valor de primera clase~~ — sí lo es; `b::doble` no es una expresión porque `::` **es** la sintaxis de llamada, y un módulo no es una clase | **retirado · era falso** |
 | [GAP-ZYB-006](#gap-zyb-006) | GAP | CLI | un programa no puede fijar su código de salida | **corregido** · v0.0.9 |
 | [GAP-ZYB-007](#gap-zyb-007) | GAP | gramática | ~~la yuxtaposición no se admite en argumentos de llamada~~ — sí se admite; el error era del inferidor de tipos ([ERROR-ZYB-005](#error-zyb-005)) | **retirado · era falso** |
 | [GAP-ZYB-008](#gap-zyb-008) | GAP | conversión a texto | un agregado se imprime con `>>` pero no se puede llevar a una cadena — solo el TW | **corregido** · v0.0.9 |
@@ -949,6 +964,52 @@ que es informar de lo mismo dos veces y a costa del gate.
 
 # GAP
 
+## BUG-ZYB-012
+
+**Comparar dos funciones da respuestas distintas según el motor, incluso cuando son la misma función.**
+
+```zymbol
+local(x) { <~ x + 1 }
+a = local
+b = local
+>> (a == b) ¶        // zytw #0 · zyvm #0 · zyjs #1
+
+l = (x -> x)
+m = l
+>> (l == m) ¶        // zytw #0 · zyvm #0 · zyjs #1
+```
+
+`a` y `b` nombran **la misma función**, y los dos motores Rust contestan que no
+son iguales mientras el del navegador contesta que sí. Lo mismo con una lambda
+asignada a dos nombres.
+
+**Ninguna de las dos respuestas está escrita en ninguna parte.** `GUIDE.md` y
+`REFERENCE.md` no dicen qué compara `==` sobre una función, así que no hay un
+motor equivocado: hay una forma sin definir sobre la que tres implementaciones
+decidieron por su cuenta, y decidieron distinto.
+
+**Por qué el gate no lo ve.** `zyq consensus` compara la salida de los programas
+del corpus, y **ningún archivo del corpus compara dos funciones** —se comprobó
+buscándolo—. La divergencia no está escondida: está en un sitio donde nadie ha
+mirado, que es la otra manera de que un gate verde no signifique nada.
+
+**Cómo salió.** Escribiendo las sondas que retiran
+[GAP-ZYB-005](#gap-zyb-005). Una de ellas preguntaba si dos llamadas al accesor
+de un módulo devuelven *la misma* función; la pregunta resultó no tener respuesta
+definida, y quedó fuera del caso de corpus por eso. Es el mismo patrón que
+`std/db` con `Unit`: al ir a comprobar una cosa aparece que la de al lado nunca
+se había decidido.
+
+**Las salidas posibles**, y la decisión no es de quien escribe la aplicación:
+
+| Salida | Qué implica |
+| --- | --- |
+| **Igualdad por identidad** | `a == b` es `#1` cuando ambos nombran la misma definición. Es lo que hace el motor del navegador y lo que hacen Python, JS y Rust con punteros a función. Los dos motores Rust tendrían que comparar la definición y no el valor envuelto. |
+| **Comparar funciones es un error** | `==` sobre una función es un error semántico, como lo es la asignación indexada. Coherente con un lenguaje que prefiere rechazar a contestar algo discutible, y deja el caso en `reject/`. |
+| **Siempre `#0`** | Lo que hacen hoy los dos Rust. Es la respuesta más difícil de defender: dice que una cosa no es igual a sí misma. |
+
+---
+
 ## GAP-ZYB-001
 
 **No hay formateo decimal con precisión en tiempo de ejecución, ni relleno de ceros.**
@@ -1208,6 +1269,55 @@ escribir como lo que son.
 ---
 
 ## GAP-ZYB-005
+
+> **RETIRADO — era falso.** Una función que vive en un módulo **sí** es un valor
+> de primera clase. Lo que la ficha encontró es que `b::doble` no es una
+> expresión, y eso no es un límite sobre las funciones: es lo que `::`
+> **significa**. `::` es la sintaxis de llamada de una función de módulo
+> —`módulo::función(args)`—, no un acceso a miembro que produzca un valor,
+> porque **un módulo no es una clase** y `b::doble` no es una referencia a
+> método: es una llamada a la que le faltan los argumentos, y el analizador lo
+> dice con esas palabras — `expected '(' for module function call`.
+>
+> Todo lo que la ficha quería funciona, y en los tres motores:
+>
+> ```zymbol
+> // dentro del módulo, el nombre desnudo YA es un valor
+> interno(v) { <~ aplica_aqui(doble, v) }
+>
+> // y para entregarla fuera, un accesor de una línea
+> dame() { <~ doble }
+> ```
+> ```zymbol
+> h = b::dame()
+> >> (h#?)[1] ¶                          // ##()  — una función con nombre
+> >> aplicar(h, 5) ¶                     // 10
+> >> b::aplica_aqui(local, 5) ¶          // 6     — y viaja hacia dentro
+> >> b::aplica_aqui((x -> x + 100), 5) ¶ // 105   — la lambda también
+> >> b::aplica_aqui(b::dame(), 5) ¶      // 10    — ida y vuelta
+> ```
+>
+> Con eso se caen las dos afirmaciones de la ficha. **«El 90% de las funciones
+> no son pasables»** es falso: todas lo son, sin ceremonia alguna desde dentro
+> del módulo —que es el caso que importaba, el de `sembrar(crear)`— y con un
+> accesor desde fuera. Y el **«rodeo del rodeo»** ya no existe: envolver en
+> lambda cruzando a otro módulo era [BUG-ZYB-001](#bug-zyb-001), corregido en
+> v0.0.9.
+>
+> **Lo que sí queda, y es mucho más pequeño:** no hay forma de nombrar una
+> función de módulo **desde fuera** sin que el módulo exporte un accesor. Es una
+> cuestión de comodidad, no de capacidad, y su precio es una función exportada
+> por cada una que se quiera entregar. Darle sintaxis propia obligaría a que
+> `::` significara dos cosas según lo que venga detrás.
+>
+> **Es el séptimo enunciado falso de este registro y el sexto de la misma
+> forma:** se probó el operador contiguo al que respondía la pregunta. Las ocho
+> sondas están en `zyquality/corpus/modules_scope/funcion_de_modulo_valor.zy`.
+>
+> **Y probarlo destapó una divergencia viva** que ninguna suite podía ver, porque
+> ningún archivo del corpus compara dos funciones: [BUG-ZYB-012](#bug-zyb-012).
+
+**El enunciado original, tal como se escribió:**
 
 **Una función de módulo no es un valor de primera clase. Una función local sí.**
 
