@@ -366,11 +366,22 @@ inventadas.
 >
 > **D-3 estaba mal enunciada y no es de `##_`.** Un Unit dentro de una colección
 > es alcanzable en los tres motores por `js::decode("[1, null, 3]")`, se imprime
-> `[1, (), 3]` y vuelve a `null` — los tres coinciden. Lo que diverge es otra
-> cosa: el motor del navegador **no implementa la comprobación de homogeneidad
-> en `$+`**, y también acepta `[1,2] $+ "tres"`, que los dos Rust rechazan. Es
-> un diagnóstico que le falta a `zyjs`, no una discrepancia sobre Unit, y sigue
-> abierto.
+> `[1, (), 3]` y vuelve a `null` — los tres coinciden. Lo que divergía era otra
+> cosa: el motor del navegador no implementaba la comprobación de homogeneidad.
+>
+> **Cerrado el 2026-08-24, y medirlo lo hizo más grande.** Eran DOS divergencias
+> —`$+` de otro tipo y el literal anidado `[[1], ["x"]]`—, no una, y las dos
+> están corregidas: el checker del navegador recuerda ahora el tipo de elemento
+> de un arreglo, que es lo que hace falta para la forma que el código tiene de
+> verdad (`a = [1,2]` y luego `a $+ "x"`, no un literal con un operador colgando).
+> Fijadas en `reject/collections/07` y `08`.
+>
+> **Y aparecieron TRES agujeros que comparten los tres motores**: `$++`, `$+[i]`
+> y `[i]$~` convierten un `[…]` en heterogéneo sin que nadie lo declare y sin
+> que nadie avise, y `#?` contesta `##[` — una lista que nadie escribió. Como
+> los tres coinciden, es un agujero de la regla y no un desacuerdo, y cerrarlo
+> rechazaría programas que hoy corren: queda escrito en `REFERENCE.md` L46 y
+> con sus bordes fijados en `corpus/collections/homogeneidad_bordes.zy`.
 >
 > **Y apareció una quinta al implementarlo**, que bloqueaba la salida (a):
 > comparar un parámetro con `==` lo ataba a ese tipo, así que
