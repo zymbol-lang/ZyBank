@@ -30,8 +30,9 @@
 > divergencia viva de los tres motores sobre la igualdad de funciones que
 > ninguna suite podía ver, porque ningún archivo del corpus compara dos.
 >
-> Quedan por decidir o implementar BUG-ZYB-012, GAP-ZYB-009, ERROR-ZYB-001 y
-> 002, y las dos IDEA.
+> **BUG-ZYB-012 quedó corregido el mismo día**: `==` sobre una función es
+> identidad, en los tres motores. Quedan por decidir o implementar GAP-ZYB-009,
+> ERROR-ZYB-001 y 002, y las dos IDEA.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
 > es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
@@ -142,7 +143,7 @@ teclado.
 | [BUG-ZYB-009](#bug-zyb-009) | BUG | errores (TW) | `$!!` dentro de un `!?` **se captura como excepción** — TW sí, VM y JS no, y la documentación da la razón a estos dos | **corregido** · v0.0.9 |
 | [BUG-ZYB-010](#bug-zyb-010) | BUG | errores (TW y VM) | un `:>` (finally) **no se ejecuta entero** cuando el bloque `!?` retorna: el TW se comía media sentencia, la VM se lo saltaba del todo | **corregido** · v0.0.9 |
 | [BUG-ZYB-011](#bug-zyb-011) | BUG | errores (JS) | un `<~` escrito **dentro** de un `:>` retorna desde ahí en los dos motores Rust y se ignora en el del navegador | **corregido** · v0.0.9 |
-| [BUG-ZYB-012](#bug-zyb-012) | BUG | igualdad (los 3 motores) | comparar dos funciones da `#0` en los dos motores Rust y `#1` en el del navegador, incluso para dos nombres de la MISMA función; no está documentado ni probado en ninguna parte | abierto |
+| [BUG-ZYB-012](#bug-zyb-012) | BUG | igualdad (los 3 motores) | comparar dos funciones daba `#0` en los dos motores Rust y `#1` en el del navegador, incluso para dos nombres de la MISMA función — `==` sobre una función es **identidad** | **corregido** · v0.0.9 |
 | [GAP-ZYB-001](#gap-zyb-001) | GAP | formato numérico | ~~no hay precisión decimal en tiempo de ejecución **ni relleno de ceros**~~ — el relleno ya existía en `#,.N`; la precisión variable ya se puede escribir | **corregido · enunciado a medias** |
 | [GAP-ZYB-002](#gap-zyb-002) | GAP | `std/` | no hay `std/time`: la fecha sale del intérprete de órdenes — ahora hay siete funciones nativas en los tres motores | **corregido** · v0.0.9 |
 | [GAP-ZYB-003](#gap-zyb-003) | GAP | diccionario | no hay literal de diccionario vacío — el diccionario tiene notación propia, `#(…)`, y `#()` es el vacío | **corregido** · v0.0.9 |
@@ -967,6 +968,44 @@ que es informar de lo mismo dos veces y a costa del gate.
 ## BUG-ZYB-012
 
 **Comparar dos funciones da respuestas distintas según el motor, incluso cuando son la misma función.**
+
+> **CORREGIDO** en v0.0.9 por la primera salida de la tabla de abajo:
+> **`==` sobre una función es identidad**. Dos nombres de una función son
+> iguales; dos funciones con el mismo cuerpo no, porque son dos funciones. Es lo
+> que contestan Python, JavaScript y Rust sobre una referencia a función.
+>
+> ```zymbol
+> uno(x) { <~ x + 1 }
+> dos(x) { <~ x + 1 }     // el mismo cuerpo, otra función
+> a = uno
+> >> (a == uno) ¶         // #1
+> >> (uno == dos) ¶       // #0
+> ```
+>
+> **Ninguno de los tres motores tenía razón.** Los dos de Rust contestaban `#0`
+> a todo, incluida una función contra **sí misma** —una cosa que no es igual a
+> sí misma—, y el del navegador contestaba `#1` a todo, incluida una función con
+> nombre contra una lambda, porque su caso por defecto comparaba `a.v === b.v` y
+> una función no tiene `v`: dos `undefined`. Parecía correcto en el único caso
+> que alguien había probado.
+>
+> **Identidad, no estructura.** Una función con nombre es la *definición* de la
+> que salió: se convierte en valor de nuevo en cada búsqueda —capturas nuevas,
+> cuerpo clonado—, así que el valor lleva el `Rc<FunctionDef>` del que se hizo y
+> dos búsquedas coinciden. Una lambda es la *evaluación* que la creó, así que
+> una escrita dentro de un bucle es una función distinta en cada vuelta, cada
+> una cerrando sobre sus propios valores y cada una igual solo a sí misma. En la
+> VM las dos respuestas salen del índice de función y, para un cierre, del `Rc`
+> de las capturas.
+>
+> **La VM necesitó el arreglo en DOS sitios** —`Value::equals` y `cmp_direct`—
+> porque sus dos bucles de despacho llegan a la igualdad por puertas distintas.
+> Es la misma forma que el brazo de `Array` que faltaba y era DM-02.
+>
+> Y ahora existe el archivo que faltaba: `corpus/functions/igualdad_de_funciones.zy`,
+> trece comparaciones idénticas en los tres motores. Con la pregunta decidida,
+> las sondas de [GAP-ZYB-005](#gap-zyb-005) pueden afirmar por fin que dos
+> llamadas al accesor de un módulo entregan **la misma** función.
 
 ```zymbol
 local(x) { <~ x + 1 }
