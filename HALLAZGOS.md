@@ -1512,6 +1512,36 @@ Hay que comparar elemento por elemento.
 
 **No hay forma de preguntar si una columna vino `NULL`, y `std/db` no documenta qué llega cuando viene.**
 
+> **La mitad de documentar está hecha** desde el arreglo de
+> [BUG-ZYB-007](#bug-zyb-007): `GUIDE.md` § `std/db` explica que una columna
+> `NULL` llega como `Unit`, separa las dos preguntas —«no hay fila» frente a
+> «la columna vino vacía»— y dice por qué `query_value` no las distingue. Lo
+> que sigue faltando es **la forma de preguntarlo**.
+>
+> **El análisis está en [`TIPOS.md`](TIPOS.md)** (2026-08-24), escrito porque la
+> pregunta no se podía contestar sin entender antes qué es `##_`. Lo que sacó:
+>
+> - **`##_` es el único tipo del lenguaje cuyo valor no se puede escribir.** Es
+>   `void` y es `null` a la vez —`js::encode(Unit)` da `null` y
+>   `js::decode("null")` da `Unit`, en los tres motores—, no es `NaN` (que es un
+>   flotante alcanzable por `inf - inf`) y no es `undefined` (un nombre que no
+>   existe es error de análisis). Es la misma forma de
+>   [GAP-ZYB-003](#gap-zyb-003): un valor alcanzable sin literal.
+> - **El rodeo que esta ficha propone está MAL, y es un fallo vivo de ZyBank.**
+>   `hay == 0` mira la cuenta de `#?`, que vale 0 para cuatro valores: `Unit`,
+>   `""`, `[]` y `#()`. `núcleo/almacén.zy::es_nulo("")` contesta hoy que la
+>   columna vino `NULL`, y `movimientos.glosa` es TEXT. La forma correcta de hoy
+>   es comparar el **símbolo**: `(v#?)[1] == "##_"`.
+> - **Cuatro divergencias vivas de los tres motores** que ninguna suite veía:
+>   `Unit == Unit` es `#0` en la VM; yuxtaponer un Unit da `()` en la VM y nada
+>   en los otros dos; un Unit dentro de un arreglo lo rechazan los dos Rust y lo
+>   acepta el del navegador; y `#?` sobre una función **con nombre** contesta
+>   `##_` en los dos Rust, por un caso especial que existe para una situación
+>   que el analizador ya impide.
+>
+> Las tres salidas están evaluadas contra las ocho reglas de `SYMBOLS.md` § 17
+> en `TIPOS.md` § 7. Sin decidir.
+
 Una columna opcional es lo corriente en cualquier esquema. Aquí lo son
 `movimientos.categoría` (los asientos de un traspaso no tienen categoría) y
 `movimientos.traspaso` (los movimientos corrientes no pertenecen a ninguno).
