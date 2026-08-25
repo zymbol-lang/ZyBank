@@ -44,8 +44,22 @@
 > captura lo que su cuerpo lee del archivo, exactamente como una lambda, y
 > `GUIDE.md` § 10b se retiró con él.
 >
-> **De los treinta y un hallazgos solo quedan las dos IDEA**, que son doctrina
-> por escribir y no cambios de motor.
+> **Las dos IDEA quedaron cerradas el 2026-08-25.** IDEA-ZYB-001 partida en dos
+> —la escritura del número es del lenguaje y se arregló; el par `,`/`.` no lo es
+> y no se toca—, e IDEA-ZYB-002 escrita en [`DINERO.md`](DINERO.md), con el
+> motivo corregido: no era el formateo ni el rango, era la **acumulación**.
+>
+> **De los treinta y tres hallazgos queda uno abierto: [GAP-ZYB-013](#gap-zyb-013)**,
+> que no es nuevo — estaba enterrado en una nota al pie de GAP-ZYB-012, mezclado
+> con dos cosas que sí se resolvieron. Preguntar por un tipo se escribe
+> comparando contra una cadena mágica, y es la única comparación del lenguaje
+> que no avisa de un dedazo. Sin bloqueo técnico ya, y **sin decidir**.
+>
+> Del lado de la **aplicación** —que no bloquea este log, porque no es un
+> hallazgo sobre el lenguaje— quedan dos: los catálogos de `idioma/` siguen
+> escribiéndose como listas de pares que el literal ya admite directamente, y
+> las tres órdenes que aceptan una fecha del usuario la guardan sin validar,
+> aunque `t::of` ya la rechaza.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
 > es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
@@ -68,7 +82,7 @@ científico, un auditor de código y dos juegos de tablero. Ninguno tenía:
 | **datos que sobreviven al idioma** | lo guardado son claves; los nombres se traducen al mostrarse, y una base creada en japonés se lee en español |
 | **configuración con precedencia** | archivo JSON sobre lo recordado en la base |
 
-De los treinta y un hallazgos —12 BUG, 12 GAP, 5 ERROR, 2 IDEA— la mitad larga sale
+De los treinta y tres hallazgos —12 BUG, 13 GAP, 6 ERROR, 2 IDEA— la mitad larga sale
 de esas intersecciones y no de una característica aislada, que es el argumento
 de `LDV.md` § 4 en concreto. Los dos peores lo dejan claro: pasar una función
 entre módulos rompe en el tree-walker de una manera
@@ -169,6 +183,7 @@ teclado.
 | [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | ~~no hay forma de escribir un carácter de control~~ — sí la hay: `0d27` es ESC, y `##!` da el punto de código | **retirado · era falso** |
 | [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | ~~las flechas del teclado no se pueden usar sin perder la tecla ESC~~ — `<<|` las entrega decodificadas y ESC sigue llegando solo | **retirado · era falso** |
 | [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `#\|c\|` da el VALOR de la cifra en las 69, y ningún programa declara cero alguno | **corregido** · v0.0.9 |
+| [GAP-ZYB-013](#gap-zyb-013) | GAP | tipos | preguntar por un tipo es compararlo contra una **cadena mágica**: `(v#?)[1] == "###"`, y un `"##"` mal escrito compila y no casa nunca | **abierto · sin decidir** |
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico — ahora avisa, en los dos motores | **corregido** · v0.0.9 |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución — el aislamiento se **retiró**: una función captura, como la lambda | **corregido** · v0.0.9 |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | **corregido** · v0.0.9 |
@@ -176,7 +191,7 @@ teclado.
 | [ERROR-ZYB-006](#error-zyb-006) | ERROR | inferidor de tipos | comparar un parámetro con `==` lo ata a ese tipo, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta — la misma forma que ERROR-ZYB-005 | **corregido** · v0.0.9 |
 | [ERROR-ZYB-005](#error-zyb-005) | ERROR | inferidor de tipos | yuxtaponer un parámetro lo obliga a ser `String`, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta | **corregido** · v0.0.9 |
 | [IDEA-ZYB-001](#idea-zyb-001) | IDEA | doctrina i18n | el formato numérico es un cuarto eje que `USERAPPI18N.md` no cubre | **cerrado v0.0.9** |
-| [IDEA-ZYB-002](#idea-zyb-002) | IDEA | doctrina | el dinero como entero + exponente merece ser doctrina escrita | propuesta |
+| [IDEA-ZYB-002](#idea-zyb-002) | IDEA | doctrina | el dinero como entero + exponente merece ser doctrina escrita — escrita en [`DINERO.md`](DINERO.md) | **cerrado v0.0.9** |
 
 Los motores se nombran como en `zyquality/engines.toml`: **zytw** (tree-walker),
 **zyvm** (VM de registros), **zyjs** (el del navegador). Toda reproducción se
@@ -967,14 +982,17 @@ antes, así que los dos motores Rust siguen la convención más extendida; pero
 `GUIDE.md` no dice nada de este caso, y por tanto los tres motores son
 igualmente defendibles contra la documentación que hay.
 
-Cerrarlo es primero decidir —¿el `:>` puede cambiar lo que devuelve la
-función, o es solo limpieza?— y después alinear el motor que quede fuera. La
-decisión importa más que la divergencia: un `:>` que puede secuestrar el valor
+Cerrarlo era primero decidir —¿el `:>` puede cambiar lo que devuelve la
+función, o es solo limpieza?— y después alinear el motor que quedara fuera. La
+decisión importaba más que la divergencia: un `:>` que puede secuestrar el valor
 de retorno es una construcción de la que hay que desconfiar, y varios lenguajes
 que la permiten avisan contra ella en su propia guía de estilo.
 
-No hay caso de corpus mientras siga abierto: hoy pondría el consenso en rojo,
-que es informar de lo mismo dos veces y a costa del gate.
+> **Decidido y cerrado el 2026-08-22: el `:>` es limpieza y no decide el
+> retorno.** Los tres motores alineados con esa lectura, y ya hay caso de
+> corpus — mientras estuvo abierto no lo hubo a propósito, porque habría puesto
+> el consenso en rojo, que es informar de lo mismo dos veces y a costa del
+> gate.
 
 
 # GAP
@@ -1680,9 +1698,10 @@ pulsada** — además de dejar de funcionar allí donde no haya `printf`. Hoy so
 comprobó que las funciones viejas devolvían 0 y 27 antes de cambiarlas.
 
 **Lo que sí queda.** Nada de este hallazgo. [BUG-ZYB-006](#bug-zyb-006) —que Tab
-y retroceso colapsen en NUL y que Ctrl+letra llegue como la letra— es un
-problema distinto y sigue abierto: ahí el valor se puede escribir perfectamente,
-lo que no se puede es distinguir dos teclas que llegan iguales.
+y retroceso colapsen en NUL y que Ctrl+letra llegue como la letra— era un
+problema distinto: ahí el valor se podía escribir perfectamente, lo que no se
+podía era distinguir dos teclas que llegaban iguales. **También quedó corregido
+en la v0.0.9**, así que de aquella pareja no queda nada abierto.
 
 ---
 
@@ -1766,10 +1785,15 @@ verificaron quitando la función para ver que fallan.
 > lectura numérica).
 >
 > Lo que queda abierto es más pequeño y es otra cosa: el símbolo de tipo con el
-> que se pregunta «¿fue una cifra?» se compara hoy contra una **cadena mágica**
-> (`(v#?)[1] == "###"`). Un literal de tipo comprobable espera a que se fije una
-> sola tabla de símbolos — hoy hay dos que no coinciden, y `#?` responde `##)`
-> tanto para una tupla como para un diccionario.
+> que se pregunta «¿fue una cifra?» se compara contra una **cadena mágica**
+> (`(v#?)[1] == "###"`), y un `"##"` con un dedazo compila y no casa nunca.
+>
+> **Las dos razones que esta nota daba para esperar ya no existen**: `#?`
+> distingue tupla (`##)`) de diccionario (`##(`) desde el 2026-08-23, y las dos
+> tablas de símbolos que no coincidían son una sola desde la v0.0.9
+> (`zymbol-common::typesym`). Lo que queda es la pregunta, sin bloqueo y sin
+> decidir, así que sale de esta nota al pie y pasa a tener ficha propia:
+> [GAP-ZYB-013](#gap-zyb-013).
 
 **Lo que decía:** que el lenguaje sabe ESCRIBIR cifras en 69 escrituras y no
 sabe LEER ninguna, que no hay forma de llegar al punto de código de un carácter,
@@ -1823,6 +1847,50 @@ usuario con teclado lao o birmano podría teclear su importe sin que nadie edite
 el programa. Es una comodidad, ya no un muro.
 
 ---
+
+## GAP-ZYB-013
+
+**Preguntar por un tipo es compararlo contra una cadena mágica.**
+
+Salió de la nota al pie de [GAP-ZYB-012](#gap-zyb-012), donde estaba mezclado
+con dos cosas que ya se resolvieron. Solo, se ve mejor.
+
+```zymbol
+v = 42
+>> (v#?)[1] ¶                    // ###
+>> ((v#?)[1] == "###") ¶         // #1
+>> ((v#?)[1])#? ¶                // (##", 3, ###)  ← es una CADENA
+```
+
+El símbolo de tipo llega como `##"`. Así que preguntar «¿esto es un entero?» se
+escribe comparando contra el literal de cadena `"###"`, y **un dedazo no da
+error**: `"##"` compila igual y no casa nunca. Es exactamente la forma de fallo
+que el lenguaje eliminó en los errores tipados —`:! ##Index` es un símbolo, no
+`:! "Index"`— y en las colecciones, donde `#?` responde con un símbolo y no con
+un nombre.
+
+**Los dos bloqueos que la nota original daba ya no existen:**
+
+- `#?` distingue tupla (`##)`) de diccionario (`##(`) desde el 2026-08-23; la
+  nota decía que respondía `##)` a las dos.
+- Las dos tablas de símbolos que no coincidían son **una sola** desde la v0.0.9:
+  `zymbol-common::typesym`, que sustituyó diez copias escritas a mano repartidas
+  por los dos motores Rust.
+
+**No está decidido, y no se implementa sin decidirlo.** Las salidas no son
+equivalentes:
+
+| salida | forma | qué cuesta |
+|---|---|---|
+| **desestimar** | queda la cadena | es la única comparación del lenguaje que no avisa de un dedazo |
+| **literal de tipo** | `v#? == ###` o `###?v` | `###` ya es el operador de redondeo: habría que derivar una forma libre (§17, regla 6: sin homógrafos) |
+| **predicado** | `v ##?` / `v $? ###` | añade símbolo para algo que ya se puede escribir — [§12 de `SYMBOLS.md`](../interpreter/SYMBOLS.md) desaconseja marcar lo que el anfitrión ya distingue |
+
+Lo que **no** es una salida: dejar la cadena y documentarla. Una regla que solo
+existe en la prosa es indistinguible de una que nadie puede justificar.
+
+---
+
 
 # ERROR
 
@@ -2223,3 +2291,32 @@ menor; el exponente pertenece a la **moneda**, no al programa; el rango i53
 aguanta ±90 billones de céntimos; y una división de dinero se reparte
 (`dinero::repartir`) en vez de redondearse, porque las partes tienen que sumar
 exactamente el total.
+
+### Cerrada en la v0.0.9 — escrita, y con el motivo corregido
+
+Está en [`DINERO.md`](DINERO.md), siete apartados, todo medido contra el binario.
+
+**La doctrina se sostiene; el motivo que la ficha daba, no del todo.** Al
+medirlo salieron dos cosas:
+
+- **`#.N|…|` ya admite precisión en tiempo de ejecución.** La cabecera de
+  `núcleo/dinero.zy` justifica el módulo entero con «`#.n|x|` con `n` variable
+  es un error de análisis, comprobado», y eso dejó de ser cierto al cerrarse
+  [GAP-ZYB-001](#gap-zyb-001). Hoy se ejecuta.
+- **Formatear por flotante es exacto casi siempre.** Sobre 400 000 importes: 0
+  mal escritos por debajo de 10^15 unidades menores, 9,2 % por encima. Un
+  programa que convierta a flotante solo para escribir acierta hasta diez
+  billones de euros.
+
+Así que **el formateo nunca fue la razón**, y el rango tampoco: 90 billones de
+euros al céntimo no es un límite que un libro real toque. La razón es la
+**acumulación**, y falla a magnitudes domésticas — mil apuntes de 0,10 € dan
+`99.9999999999986`, y el saldo **no es igual** a 100,00, así que cualquier
+cuadre por igualdad falla. Que quede escrito importa: un motivo falso es la vía
+más rápida a que alguien retire una regla que sí hacía falta.
+
+**Dónde vive.** No en `std/`. `std/time` se justificaba más allá de este
+proyecto —toda aplicación que registre algo necesita una fecha, y no hay
+intérprete de órdenes en el navegador—; moneda, exponente y formato local son de
+dominio. Su sitio es un **paquete distribuible y versionado** (`ZyModule`), y
+`núcleo/dinero.zy` es su implementación de referencia hasta que salga de aquí.
