@@ -36,8 +36,16 @@
 > **GAP-ZYB-009 quedó cerrado el 2026-08-24** por el análisis de
 > [`TIPOS.md`](TIPOS.md): `##_` pasa a escribirse, y la pregunta es `v == ##_`.
 > Implementarlo destapó **ERROR-ZYB-006** y cerró de paso las cuatro
-> divergencias que el análisis había medido. Quedan por decidir o implementar
-> ERROR-ZYB-001 y 002, y las dos IDEA.
+> divergencias que el análisis había medido.
+>
+> **ERROR-ZYB-001 y 002 quedaron cerrados el 2026-08-24**, los dos por decisión
+> de quien mantiene el lenguaje: el identificador suelto **avisa**, y el
+> aislamiento de la llamada directa **se retiró** — una función con nombre
+> captura lo que su cuerpo lee del archivo, exactamente como una lambda, y
+> `GUIDE.md` § 10b se retiró con él.
+>
+> **De los treinta y un hallazgos solo quedan las dos IDEA**, que son doctrina
+> por escribir y no cambios de motor.
 >
 > Cerrar exige un cambio en el lenguaje o un rechazo razonado, y esa decisión no
 > es de quien escribe la aplicación: las de esta tanda las tomó quien mantiene
@@ -161,8 +169,8 @@ teclado.
 | [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | ~~no hay forma de escribir un carácter de control~~ — sí la hay: `0d27` es ESC, y `##!` da el punto de código | **retirado · era falso** |
 | [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | ~~las flechas del teclado no se pueden usar sin perder la tecla ESC~~ — `<<|` las entrega decodificadas y ESC sigue llegando solo | **retirado · era falso** |
 | [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `#\|c\|` da el VALOR de la cifra en las 69, y ningún programa declara cero alguno | **corregido** · v0.0.9 |
-| [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico | abierto |
-| [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución | abierto |
+| [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico — ahora avisa, en los dos motores | **corregido** · v0.0.9 |
+| [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución — el aislamiento se **retiró**: una función captura, como la lambda | **corregido** · v0.0.9 |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | **corregido** · v0.0.9 |
 | [ERROR-ZYB-004](#error-zyb-004) | ERROR | `check` / analizador | ~~`zymbol check` rechaza un `<# ../lib/util` que `zymbol run` ejecuta~~ — el convenio del punto dice que `# .lib_util` nombra la ruta entera; el archivo de la prueba estaba mal escrito | **retirado · era falso** |
 | [ERROR-ZYB-006](#error-zyb-006) | ERROR | inferidor de tipos | comparar un parámetro con `==` lo ata a ese tipo, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta — la misma forma que ERROR-ZYB-005 | **corregido** · v0.0.9 |
@@ -1822,6 +1830,22 @@ el programa. Es una comodidad, ya no un muro.
 
 **Una sentencia que es solo un identificador no produce ni error, ni aviso, ni nada en `zymbol check`.**
 
+> **CORREGIDO** en v0.0.9 con un **aviso**, en el analizador y en el motor del
+> navegador, con el mismo texto:
+>
+> ```
+> warning: this statement does nothing: 'v' is read and discarded
+>   = help: remove it, or use it — `>> name ¶` to print it
+> ```
+>
+> Aviso y no error, y la razón es la de esta misma ficha: un nombre suelto **no
+> es incorrecto en sí**, es siempre un síntoma. Rechazarlo castigaría la línea
+> equivocada.
+>
+> Solo el identificador **desnudo**: una expresión que lleva una llamada puede
+> estar ahí por su efecto, y `arr$+ 4` suelto es la forma documentada de
+> modificar en el sitio — la regla del resultado.
+
 ```zymbol
 v = "X"
 v          // no hace nada; nadie dice nada
@@ -1843,6 +1867,44 @@ que la maquinaria para decirlo ya está.
 ## ERROR-ZYB-002
 
 **Usar una variable del ámbito del archivo dentro de una función pasa `zymbol check` limpio y revienta en tiempo de ejecución.**
+
+> **CORREGIDO** en v0.0.9, y **no por donde la ficha proponía**. Decía que «el
+> analizador conoce la regla y no la aplica», y al ir a aplicarla apareció que
+> **no había una sola regla que aplicar**:
+>
+> ```zymbol
+> base = 10
+> adder(n) { <~ n + base }
+>
+> adder(5)              // error de ejecución — aislada
+> f = adder ; f(5)      // 15                 — capturaba
+> ```
+>
+> El mismo cuerpo significaba dos cosas según cómo se alcanzara, y nada en el
+> código decía cuál. Poner el diagnóstico habría quitado la mitad que
+> funcionaba.
+>
+> **La decisión fue retirar el aislamiento**: una función con nombre **captura**
+> lo que su cuerpo lee del archivo, con la regla de la lambda — **por valor y
+> con la escritura aislada**. Una regla en vez de dos, y `GUIDE.md` § 10b, que
+> documentaba el aislamiento como deliberado, se retiró con ella.
+>
+> **No es ámbito dinámico**: los valores salen del ARCHIVO, nunca del llamante,
+> así que una función llamada dentro de otra no ve los locales de ésa. El caso
+> de corpus lo afirma, porque es la equivocación que esta forma invita.
+>
+> **Y el estado de módulo sigue siendo otra cosa**: las funciones de un módulo
+> lo comparten y sus escrituras persisten. Esa diferencia es lo que hace que uno
+> sea estado y la otra captura.
+>
+> Los tres motores necesitaron cosas distintas —el tree-walker espeja las
+> escrituras del archivo porque intercambia la pila entera en cada llamada; la
+> VM estrena un mapa con la mitad del contrato de los globales de módulo:
+> legibles desde cualquier sitio, escritos solo desde `<main>`— y **tres
+> archivos del corpus existían porque la llamada directa fallaba**, incluido uno
+> que la usaba como forma cómoda de reventar dentro de un `!?`. Los tres
+> reescritos. Regla fijada en
+> `zyquality/corpus/functions/captura_del_archivo.zy`.
 
 Que una función no alcance el ámbito del archivo está documentado y es
 deliberado (`GUIDE.md` § 10b: una llamada directa es *isolated*). El hallazgo no
