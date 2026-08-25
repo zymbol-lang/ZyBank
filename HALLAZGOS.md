@@ -49,11 +49,12 @@
 > y no se toca—, e IDEA-ZYB-002 escrita en [`DINERO.md`](DINERO.md), con el
 > motivo corregido: no era el formateo ni el rango, era la **acumulación**.
 >
-> **De los treinta y tres hallazgos queda uno abierto: [GAP-ZYB-013](#gap-zyb-013)**,
-> que no es nuevo — estaba enterrado en una nota al pie de GAP-ZYB-012, mezclado
-> con dos cosas que sí se resolvieron. Preguntar por un tipo se escribe
-> comparando contra una cadena mágica, y es la única comparación del lenguaje
-> que no avisa de un dedazo. Sin bloqueo técnico ya, y **sin decidir**.
+> **Los treinta y tres hallazgos están cerrados.** El último en abrirse,
+> [GAP-ZYB-013](#gap-zyb-013), duró un día: decía que preguntar por un tipo es
+> compararlo contra una cadena mágica, y no lo es — **es el nombre del tipo**,
+> escrito en símbolos en vez de en letras latinas. `"###"` es a Zymbol lo que
+> `"Integer"` a otro lenguaje. Octavo enunciado falso del registro, y séptimo de
+> la misma forma: se probó el constructo contiguo.
 >
 > Del lado de la **aplicación** —que no bloquea este log, porque no es un
 > hallazgo sobre el lenguaje— quedan dos: los catálogos de `idioma/` siguen
@@ -100,8 +101,12 @@ teclado pierde el modificador Control y colapsa dos teclas en una
 ([BUG-ZYB-006](#bug-zyb-006)) y el tree-walker repinta un estado que ya se
 había limpiado ([BUG-ZYB-008](#bug-zyb-008)).
 
-**Siete** hallazgos de esta lista resultaron ser **falsos o mal enunciados**, y
-merecen decirse aquí antes que en su ficha. El séptimo,
+**Ocho** hallazgos de esta lista resultaron ser **falsos o mal enunciados**, y
+merecen decirse aquí antes que en su ficha. El octavo,
+[GAP-ZYB-013](#gap-zyb-013), duró un día y repite la forma: llamaba «cadena
+mágica» al **nombre** de un tipo, tras comparar con una cláusula de captura
+—`:! ##Index`— que es una posición de patrón y no una comparación de valores.
+El séptimo,
 [GAP-ZYB-005](#gap-zyb-005), llegó el 2026-08-24 y repite la forma exacta de los
 otros cinco: decía que una función de módulo no es un valor de primera clase
 tras probar `b::doble`, que no es una expresión **porque `::` es la sintaxis de
@@ -183,7 +188,7 @@ teclado.
 | [GAP-ZYB-010](#gap-zyb-010) | GAP | literales | ~~no hay forma de escribir un carácter de control~~ — sí la hay: `0d27` es ESC, y `##!` da el punto de código | **retirado · era falso** |
 | [GAP-ZYB-011](#gap-zyb-011) | GAP | TUI | ~~las flechas del teclado no se pueden usar sin perder la tecla ESC~~ — `<<|` las entrega decodificadas y ESC sigue llegando solo | **retirado · era falso** |
 | [GAP-ZYB-012](#gap-zyb-012) | GAP | caracteres | ~~el lenguaje escribe 69 escrituras y no sabe leer ninguna~~ — `#\|c\|` da el VALOR de la cifra en las 69, y ningún programa declara cero alguno | **corregido** · v0.0.9 |
-| [GAP-ZYB-013](#gap-zyb-013) | GAP | tipos | preguntar por un tipo es compararlo contra una **cadena mágica**: `(v#?)[1] == "###"`, y un `"##"` mal escrito compila y no casa nunca | **abierto · sin decidir** |
+| [GAP-ZYB-013](#gap-zyb-013) | GAP | tipos | ~~preguntar por un tipo es compararlo contra una cadena mágica~~ — no es mágica: es el **nombre** del tipo, y `"###"` es a Zymbol lo que `"Integer"` a otro lenguaje | **retirado · era falso** |
 | [ERROR-ZYB-001](#error-zyb-001) | ERROR | semántica | una sentencia que es solo un identificador no produce diagnóstico — ahora avisa, en los dos motores | **corregido** · v0.0.9 |
 | [ERROR-ZYB-002](#error-zyb-002) | ERROR | `check` / semántica | leer una variable del archivo desde una función pasa `check` y revienta en ejecución — el aislamiento se **retiró**: una función captura, como la lambda | **corregido** · v0.0.9 |
 | [ERROR-ZYB-003](#error-zyb-003) | ERROR | analizador | aviso **falso** en todo `@ x:col` escrito en el cuerpo del archivo, con una ayuda que no analiza | **corregido** · v0.0.9 |
@@ -1792,8 +1797,10 @@ verificaron quitando la función para ver que fallan.
 > distingue tupla (`##)`) de diccionario (`##(`) desde el 2026-08-23, y las dos
 > tablas de símbolos que no coincidían son una sola desde la v0.0.9
 > (`zymbol-common::typesym`). Lo que queda es la pregunta, sin bloqueo y sin
-> decidir, así que sale de esta nota al pie y pasa a tener ficha propia:
-> [GAP-ZYB-013](#gap-zyb-013).
+> decidir, así que salió de esta nota al pie y pasó a tener ficha propia:
+> [GAP-ZYB-013](#gap-zyb-013) — **donde se retiró el mismo día, por falsa**. No
+> es una cadena mágica: es el nombre del tipo, y compararlo contra una cadena es
+> lo que hace todo lenguaje de tipos dinámicos.
 
 **Lo que decía:** que el lenguaje sabe ESCRIBIR cifras en 69 escrituras y no
 sabe LEER ninguna, que no hay forma de llegar al punto de código de un carácter,
@@ -1877,17 +1884,40 @@ un nombre.
   `zymbol-common::typesym`, que sustituyó diez copias escritas a mano repartidas
   por los dos motores Rust.
 
-**No está decidido, y no se implementa sin decidirlo.** Las salidas no son
-equivalentes:
-
-| salida | forma | qué cuesta |
-|---|---|---|
-| **desestimar** | queda la cadena | es la única comparación del lenguaje que no avisa de un dedazo |
-| **literal de tipo** | `v#? == ###` o `###?v` | `###` ya es el operador de redondeo: habría que derivar una forma libre (§17, regla 6: sin homógrafos) |
-| **predicado** | `v ##?` / `v $? ###` | añade símbolo para algo que ya se puede escribir — [§12 de `SYMBOLS.md`](../interpreter/SYMBOLS.md) desaconseja marcar lo que el anfitrión ya distingue |
-
-Lo que **no** es una salida: dejar la cadena y documentarla. Una regla que solo
-existe en la prosa es indistinguible de una que nadie puede justificar.
+> **RETIRADO — era falso, el mismo día que se abrió (2026-08-25).** Lo notó
+> quien mantiene el lenguaje, y con una sola frase: eso no es una cadena mágica,
+> **es el nombre del tipo**.
+>
+> `#?` devuelve un nombre, y el nombre está escrito en símbolos en vez de en
+> letras latinas. `"###"` es a Zymbol lo que `"Integer"` a otro lenguaje y lo
+> que `"int"` a Python. Comparar el nombre de un tipo contra una cadena es lo
+> que hace **todo** lenguaje de tipos dinámicos, y `type(x).__name__ == "itn"`
+> tampoco casa nunca en ninguno de ellos. Eso no es un defecto de Zymbol: es lo
+> que significa comparar nombres.
+>
+> **`##_` es el único que además se volvió sintaxis, y por otra necesidad** —
+> [GAP-ZYB-009](#gap-zyb-009), poder escribir el VALOR Unit para preguntar
+> `v == ##_`—. No creó una excepción: consultar un Unit sigue devolviendo la
+> **cadena** `"##_"`. Las dos formas conviven porque responden a preguntas
+> distintas, el valor y el nombre:
+>
+> ```zymbol
+> u = ##_
+> >> (u#?)[1] ¶            // ##_
+> >> ((u#?)[1])#? ¶        // (##", 3, ##_)   ← una cadena, como los demás
+> ```
+>
+> **Dónde falló el enunciado.** En que probó **el constructo contiguo**: dije
+> que el lenguaje ya había eliminado esta forma en los errores tipados
+> (`:! ##Index`, no `:! "Index"`). Pero una cláusula de captura es una posición
+> de **patrón**, no una comparación de valores. Son sitios gramaticales
+> distintos, y que uno use un símbolo no obliga al otro.
+>
+> Y «la única comparación del lenguaje que no avisa de un dedazo» estaba
+> inflado: ninguna comparación de cadenas avisa, en ningún lenguaje.
+>
+> **Es el octavo enunciado falso de este registro y el séptimo de la misma
+> forma.** Sondas en `corpus/collections/tipos_simbolos.zy`.
 
 ---
 
