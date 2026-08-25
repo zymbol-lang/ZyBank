@@ -175,7 +175,7 @@ teclado.
 | [ERROR-ZYB-004](#error-zyb-004) | ERROR | `check` / analizador | ~~`zymbol check` rechaza un `<# ../lib/util` que `zymbol run` ejecuta~~ — el convenio del punto dice que `# .lib_util` nombra la ruta entera; el archivo de la prueba estaba mal escrito | **retirado · era falso** |
 | [ERROR-ZYB-006](#error-zyb-006) | ERROR | inferidor de tipos | comparar un parámetro con `==` lo ata a ese tipo, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta — la misma forma que ERROR-ZYB-005 | **corregido** · v0.0.9 |
 | [ERROR-ZYB-005](#error-zyb-005) | ERROR | inferidor de tipos | yuxtaponer un parámetro lo obliga a ser `String`, así que **los dos motores Rust rechazan un programa correcto** que el del navegador ejecuta | **corregido** · v0.0.9 |
-| [IDEA-ZYB-001](#idea-zyb-001) | IDEA | doctrina i18n | el formato numérico es un cuarto eje que `USERAPPI18N.md` no cubre | propuesta |
+| [IDEA-ZYB-001](#idea-zyb-001) | IDEA | doctrina i18n | el formato numérico es un cuarto eje que `USERAPPI18N.md` no cubre | **cerrado v0.0.9** |
 | [IDEA-ZYB-002](#idea-zyb-002) | IDEA | doctrina | el dinero como entero + exponente merece ser doctrina escrita | propuesta |
 
 Los motores se nombran como en `zyquality/engines.toml`: **zytw** (tree-walker),
@@ -2165,6 +2165,49 @@ Que son ejes distintos se ve al cruzarlos: hindi con dinar kuwaití da
 porque el idioma de quien lee no dice en qué moneda tiene el dinero. Un
 `std/format` o una sección nueva de `USERAPPI18N.md` evitaría que cada
 aplicación redescubra esto.
+
+### Cerrado en la v0.0.9 — como decisión, y partido en dos
+
+La ficha mezcla dos preguntas que resultaron tener respuestas opuestas.
+
+**La escritura del número es del lenguaje, y se arregló.** Un separador es parte
+de cómo se escribe una cifra, igual que la cifra misma, así que sigue al modo
+numeral: bajo `#٠٩#` un número se escribe `١٬٢٣٤٬٥٦٧٫٨٩`, con U+066C y U+066B.
+El listón para que una escritura tenga separadores propios es que **Unicode
+nombre el carácter separador numérico de esa escritura**, y solo el árabe lo
+pasa; las otras 67 escriben `.` y `,`. Antes de esto, `#,` y `#^` ni siquiera
+escribían sus *cifras* en la escritura activa.
+
+**El par no es del lenguaje, y no se va a arreglar.** La `,` agrupa y el `.`
+divide, en toda escritura, y no hay modo ni argumento que lo invierta. La ficha
+pedía elegir entre `1.234,56` y `1,234.56`; la respuesta es que el lenguaje
+escribe la segunda y quien necesite la primera se la construye. La razón no es
+pereza: un par configurable vuelve ambiguo **todo** número hasta saber bajo qué
+ajuste se escribió, y ese coste lo pagan todos los lectores para ahorrárselo a
+un escritor. Es la regla 1 del §17 en un sitio donde apetece romperla.
+
+**Y la tabla de la ficha sigue siendo correcta en lo demás.** Los cuatro ejes
+existen y se cruzan; lo que cambia es dónde vive cada uno. Los dos primeros
+—idioma del texto, escritura de las cifras— son del lenguaje y ya tienen
+mecanismo. Los dos últimos —formato local del par, moneda— son de dominio y
+viven en un paquete distribuible, no en `std/`. Un `std/format` sería el mismo
+error que un `std/money`: `std/time` se justificaba más allá de este proyecto,
+un catálogo de preferencias de locale no.
+
+Lo que queda para `USERAPPI18N.md` es una sección corta que diga exactamente
+esto, para que la próxima aplicación no vuelva a descubrir los cuatro ejes desde
+cero. Eso es documentación, no lenguaje.
+
+**El propio `núcleo/dinero.zy` lo confirma.** `agrupar(texto, separador)` recibe
+el separador de `moneda["miles"]`, o sea **por moneda**. No era el apaño de una
+carencia del lenguaje —no es `#,` reescrito a mano— sino justo lo que el
+lenguaje decidió no hacer: un par configurable. Se queda donde está, y ahí es
+donde debía estar. (Queda una inconsistencia suya, no del motor: bajo `#٠٩#`
+compone cifras árabes con un separador ASCII sacado de la configuración de la
+moneda. Es del paquete resolverla.)
+
+Fijado en `zyquality/corpus/i18n/separadores_de_la_escritura.zy` y documentado
+en `GUIDE.md` §Number Formatting y `SYMBOLS.md` §6.2.
 
 ## IDEA-ZYB-002
 
