@@ -592,7 +592,14 @@
                 <<| t
 
                 ? t == 'q' || t == 'Q' {
-                    @! principal
+                    // `@:principal!`, not `@! principal`: the label goes INSIDE
+                    // the jump. Written apart it is a bare `@!` — which leaves
+                    // only the inner loop — followed by a name nobody defined,
+                    // and that raised `undefined variable 'principal'` on the
+                    // quit key. Nothing saw it because it sits inside `>>| { … }`
+                    // and the Rust type checker did not enter one (GLB-030).
+                    // EN: the label belongs inside the jump: `@:label!`.
+                    @:principal!
                 }
                 // ← vuelve, igual que ESC: es la misma acción y la
                 // flecha es la que busca quien no conoce el pie.
