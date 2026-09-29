@@ -126,4 +126,5 @@ fallos = fallos + igual("llano KWD", d::formatear_llano(1050, m::obtener("KWD"))
 }
 _ {
     >> "FALLOS: " fallos ¶
+    <~ 1
 }

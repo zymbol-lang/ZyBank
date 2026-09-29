@@ -117,4 +117,5 @@ fallos = fallos + igual("japonés escribe en ASCII", "" n, "2026")
 }
 _ {
     >> "FALLOS: " fallos ¶
+    <~ 1
 }

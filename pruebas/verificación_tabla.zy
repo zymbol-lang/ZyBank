@@ -87,4 +87,5 @@ fallos = fallos + mide("Food latino", "Food", 4, 4)
 }
 _ {
     >> "FALLOS: " fallos ¶
+    <~ 1
 }
