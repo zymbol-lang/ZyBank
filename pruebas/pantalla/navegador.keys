@@ -1,0 +1,76 @@
+# Baja a la segunda cuenta y vuelve: la flecha llega decodificada.
+DOWN
+SHOW
+UP
+# Abre Corriente (CLP) y un movimiento nuevo con la primera categoría.
+ENTER
+n
+ENTER
+# Un importe con basura y con tres escrituras de cifras: 1 ascii, २ devanagari,
+# ৩ bengalí. La «a» y el «.» no entran (CLP no tiene decimales): queda 123.
+1
+a
+२
+.
+৩
+SHOW
+ENTER
+# La glosa, con una flecha en medio que no se escribe: queda «Pan».
+P
+a
+n
+LEFT
+ENTER
+# Abona y descuenta saldo, corrige el seleccionado y lo borra.
++
+5
+0
+0
+ENTER
+A
+ENTER
+-
+2
+0
+0
+ENTER
+B
+ENTER
+e
+9
+ENTER
+C
+ENTER
+x
+s
+SHOW
+# Traspasa a Ahorro (USD): importe de origen en CLP, de destino en USD.
+LEFT
+t
+ENTER
+1
+0
+0
+0
+0
+0
+ENTER
+1
+0
+5
+.
+5
+0
+ENTER
+C
+a
+m
+b
+i
+o
+ENTER
+SHOW
+# Rota el idioma dos veces, en vivo, y sale.
+i
+i
+q
