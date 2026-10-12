@@ -38,8 +38,12 @@ fallos=0
 for suite in dinero dígitos idioma tabla almacén; do
     for motor in "" "--vm"; do
         nombre="${motor:---tw}"
+        # El estado de salida, no el texto: cada suite termina con `<~ 1` si
+        # falla (IDEA-GOL-012), y una que revienta a medias también sale
+        # distinto de 0. Buscar «TODO BIEN» no distinguía esas dos cosas.
+        # EN: the exit status, not the text — a failing suite ends with `<~ 1`.
         salida="$(zymbol run $motor "pruebas/verificación_$suite.zy" 2>&1)"
-        if printf '%s' "$salida" | grep -q '^TODO BIEN$'; then
+        if [ $? -eq 0 ]; then
             printf 'ok    %-10s %s\n' "$suite" "$nombre"
         else
             printf 'FALLO %-10s %s\n' "$suite" "$nombre"

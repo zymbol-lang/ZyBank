@@ -34,7 +34,6 @@
     <# ../núcleo/almacén => al
     <# ../núcleo/dinero => din
     <# ../núcleo/semilla => sem
-    <# ../núcleo/mapa => mp
     <# ../configuración/monedas => mon
     <# ../configuración/preferencias => pref
     <# ../idioma/despacho => idi

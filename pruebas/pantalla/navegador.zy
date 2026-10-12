@@ -1,0 +1,31 @@
+// pruebas/pantalla/navegador.zy — el navegador a pantalla completa, sin pty.
+//
+// La misma secuencia que pruebas/verificación_tui.sh, pero en Zymbol y dentro
+// del gate: la base se siembra con la CLI llamada como subscript, con sus
+// propios argumentos (`</ app.zy args… />`), la TUI se arranca en este mismo
+// proceso, y las teclas están en navegador.keys — `zymbol run --keys` dibuja
+// en una pantalla virtual de 24×80 y deja los fotogramas en la salida. El
+// golden es lo que una persona habría visto.
+//
+// Las cuentas se abren CON FECHA: sin ella la apertura lleva la de hoy, sale
+// ordenada la primera, y `e` y `x` actuarían sobre ella en vez de sobre el
+// movimiento que la secuencia quiere corregir y borrar.
+//
+// EN: the full-screen browser, without a pty — seeded through the CLI as a
+// subscript, driven by navegador.keys under `zymbol run --keys`.
+
+<# ../../interfaz/cli => cli
+<# ../../pantalla/tui => tui
+
+_s1 = </ ../../zybank.zy iniciar />
+_s2 = </ ../../zybank.zy nueva Corriente CLP 500000 2026-01-01 />
+_s3 = </ ../../zybank.zy nueva Ahorro USD 120050 2026-01-01 />
+_s4 = </ ../../zybank.zy anotar Corriente gasto.alimentación 25990 Feria 2026-08-01 />
+_s5 = </ ../../zybank.zy anotar Corriente ingreso.sueldo 1200000 Sueldo 2026-08-05 />
+
+(ok, err) = cli::arrancar("zybank.json")
+? !ok {
+    >> "✗ " err ¶
+    <~ 1
+}
+tui::correr()

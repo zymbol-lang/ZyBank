@@ -205,4 +205,5 @@ fallos = fallos + igual("de vuelta a ASCII", k::transliterar("12.50"), "12.50")
 }
 _ {
     >> "FALLOS: " fallos ¶
+    <~ 1
 }
