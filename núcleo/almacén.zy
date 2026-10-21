@@ -305,12 +305,13 @@
         // precedes sorts last and drops the starting money out of
         // every period summary. The INSERTs carry `NOT EXISTS`, so
         // re-entering duplicates nothing.
-        // Los paréntesis no son adorno: `!r3$!` se lee `(!r3)$!` y
-        // pregunta si la NEGACIÓN es un error, que es otra pregunta
-        // y además revienta. `!(r3$!)` es «la consulta NO falló», o
-        // sea «la columna vieja sigue ahí».
-        // EN: the parentheses are load-bearing: `!r3$!` parses as
-        // `(!r3)$!`, a different question that also blows up.
+        // `!(r3$!)` es «la consulta NO falló», o sea «la columna vieja
+        // sigue ahí». Hasta la v0.0.11 los paréntesis eran necesarios:
+        // `!r3$!` se leía `(!r3)$!` y reventaba. Desde GLB-145
+        // (2026-10-21) `!r3$!` ya es `!(r3$!)`; se dejan por claridad.
+        // EN: until v0.0.11 the parentheses were load-bearing — `!r3$!`
+        // parsed as `(!r3)$!` and blew up. Since GLB-145 it is
+        // `!(r3$!)`; they stay for clarity.
         r3 = bd::query(c, "SELECT saldo_inicial FROM cuentas LIMIT 1")
         ? !(r3$!) {
             fecha_hoy = hoy()
