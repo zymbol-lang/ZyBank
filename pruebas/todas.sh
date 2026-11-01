@@ -36,7 +36,7 @@ command -v zymbol >/dev/null || { echo "sin binario zymbol" >&2; exit 2; }
 
 fallos=0
 for suite in dinero dígitos idioma tabla almacén; do
-    for motor in "" "--vm"; do
+    for motor in "--tw" "--vm"; do
         nombre="${motor:---tw}"
         # El estado de salida, no el texto: cada suite termina con `<~ 1` si
         # falla (IDEA-GOL-012), y una que revienta a medias también sale
