@@ -2,7 +2,7 @@
 name = "zybank"
 version = "0.1.0"
 engine = ">=0.0.9"
-description = "Personal ledger — income and expenses, written in Spanish, with money as integers, SQLite through std/db, and four locales"
+desc = "Personal ledger — income and expenses, written in Spanish, with money as integers, SQLite through std/db, and four locales"
 license = "AGPL-3.0-only"
 mode = "vm"
 
