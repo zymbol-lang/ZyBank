@@ -11,7 +11,7 @@
 //    dar por hecho un teclado.
 //
 // 2. SE COMPRUEBA LA PREMISA, NO UNA COPIA. `pantalla/teclas.zy`
-//    lee un dígito restando: `##!t` menos el cero de su escritura.
+//    lee un dígito restando: `0d|t|` menos el cero de su escritura.
 //    Eso se sostiene sobre dos supuestos, y los dos se verifican
 //    aquí contra el propio lenguaje, que sabe ESCRIBIR las 69
 //    escrituras con un mode-switch:
@@ -31,7 +31,7 @@
 // EN: pruebas/verificación_dígitos.zy — a digit is not "0".."9".
 // Recognition is NUMERIC: «७», «৭», «௭», «٧» and «۷» are all seven.
 // And what is checked is the PREMISE, not a copy: `teclas.zy` reads
-// a digit by subtracting its script's zero from `##!t`, which rests
+// a digit by subtracting its script's zero from `0d|t|`, which rests
 // on (a) each script's ten digits occupying ten CONSECUTIVE code
 // points and (b) the declared zero being the one the language
 // writes. Both are verified here against the language's own numeral
@@ -71,7 +71,7 @@ cero_activo() {
     cero = 0 - 1
     i = 0
     @ c:cifras {
-        punto = ##!c
+        punto = 0d|c|
         ? i == 0 { cero = punto }
         ? punto <> (cero + i) { <~ 0 - 1 }
         i = i + 1

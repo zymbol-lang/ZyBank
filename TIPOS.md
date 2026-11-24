@@ -74,9 +74,10 @@ que `1.0 == 1` es `#1`.
 
 **`##"` Cadena y `##'` Carácter son tipos distintos**, y esa distinción cuesta
 más de lo que parece hasta que se topa uno con ella. Un trozo de cadena es una
-**cadena** aunque mida un carácter: `("abc"$[1..1])#?` contesta `##"`, y `##!`
-sobre él aborta con *«requires a numeric value or Char, got String»* — en
-ejecución, porque `zymbol check` lo deja pasar, que es la misma familia de hueco
+**cadena** aunque mida un carácter: `("abc"$[1..1])#?` contesta `##"`, y `0d|…|`
+sobre él no da su código sino que lee cifras: aborta con *«failed to parse 'a' as
+decimal number»* — en ejecución, porque `zymbol check` lo deja pasar (hasta la
+v0.0.11 el código de un carácter era `##!c`, y abortaba igual), que es la misma familia de hueco
 que [ERROR-ZYB-002](HALLAZGOS.md#error-zyb-002). `pantalla/campo.zy` lleva una
 tabla ASCII escrita a mano por esto exactamente.
 
