@@ -32,7 +32,7 @@
 //
 // Pero no hace falta saber qué carácter es: hace falta saber cuánto
 // vale. Unicode coloca las diez cifras de cada escritura en diez
-// puntos de código SEGUIDOS, así que restarle a `0d|t|` el cero de la
+// puntos de código SEGUIDOS, así que restarle a `#|t|` el cero de la
 // escritura da el valor directamente. Lo único que hay que declarar
 // es ese cero, y es un NÚMERO — algo que se comprueba de un vistazo,
 // al contrario que un glifo que nadie de este equipo sabe leer.
@@ -58,7 +58,7 @@
 // is worse than localising nothing, since it shows the user a script
 // it then refuses. But what is needed is not which character it is,
 // it is what it is worth: Unicode lays each script's ten digits in
-// ten CONSECUTIVE code points, so `0d|t|` minus the script's zero is
+// ten CONSECUTIVE code points, so `#|t|` minus the script's zero is
 // the value. Only that zero is declared, and it is a NUMBER — which
 // can be checked at a glance, unlike a glyph nobody here reads.
 // ============================================================
@@ -128,7 +128,7 @@
     // EN: a control character is anything below space, plus DEL.
     // Enter, ESC and Tab are in that set and have their own
     // predicates above; ask those first.
-    es_control(t) { <~ (0d|t| < 32) || (0d|t| == 127) }
+    es_control(t) { <~ (#|t| < 32) || (#|t| == 127) }
 
     // ── Las flechas ──────────────────────────────────────────
     //
@@ -210,7 +210,7 @@
     // needs, and it is NUMERIC: it does not ask which script the
     // character belongs to, it asks what it is worth.
     dígito_ascii(t) {
-        punto = 0d|t|
+        punto = #|t|
         @ e:escrituras() {
             (_nombre, cero) = e
             valor = punto - cero
